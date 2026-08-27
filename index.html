@@ -370,7 +370,7 @@
             <h2>云端处理</h2>
             <p>使用固定 Cloudflare Worker 地址，不需要启动 Mac 终端。音频只在转写期间临时存入私有空间。</p>
             <div class="field-grid">
-              <div class="field"><label for="cloudSetup">一次性连接配置</label><textarea id="cloudSetup" autocomplete="off" spellcheck="false" placeholder='粘贴 {"workerUrl":"https://…workers.dev","appToken":"…"}'></textarea><span class="field-hint">首次部署后粘贴一次即可，以后不需要重新配对。</span></div>
+              <div class="field"><label for="cloudSetup">一次性连接配置</label><input id="cloudSetup" type="password" autocomplete="off" spellcheck="false" placeholder='粘贴包含 Worker 地址和令牌的完整配置'><span class="field-hint">内容会隐藏显示；首次部署后粘贴一次即可，以后不需要重新配对。</span></div>
               <div class="field"><label for="workerUrl">Worker 地址</label><input id="workerUrl" type="url" placeholder="https://meeting-minutes-cloud.你的账号.workers.dev" autocomplete="off"></div>
               <div class="field"><label for="appToken">云端访问令牌</label><input id="appToken" type="password" placeholder="部署时生成的 APP_TOKEN" autocomplete="off"><span class="field-hint">令牌只加密保存在此浏览器，用于防止公开网页被他人调用。</span></div>
             </div>
@@ -1706,6 +1706,10 @@
       $("#saveSettings").addEventListener("click", saveSettings);
       $("#applyCloudSetup").addEventListener("click", applyCloudSetup);
       $("#testCloud").addEventListener("click", async () => {
+        if ($("#cloudSetup").value.trim()) {
+          await applyCloudSetup();
+          return;
+        }
         try { readCloudSettings(); await saveVaultWithCurrentKey(); await checkCloud(true); }
         catch (error) { toast(error.message, "error"); }
       });
