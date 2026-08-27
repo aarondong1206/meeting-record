@@ -393,7 +393,7 @@
               <div class="field"><label for="qwenRegion">区域</label><select id="qwenRegion"><option value="cn-beijing">中国大陆（北京）</option><option value="ap-southeast-1">国际（新加坡）</option></select></div>
               <div class="field"><label for="liveModel">实时字幕模型</label><input id="liveModel" value="qwen-audio-3.0-asr-flash-streaming"></div>
               <div class="field"><label for="finalModel">4 分钟录音校正模型</label><input id="finalModel" value="qwen-audio-3.0-asr-flash"></div>
-              <div class="field"><label for="fileModel">长录音文件转写模型</label><input id="fileModel" value="qwen-audio-3.0-asr-flash-filetrans"><span class="field-hint">导入的长音频优先由手机直传百炼，避免大文件经过 Quick Tunnel；失败时自动改用 Mac 转发。</span></div>
+              <div class="field"><label for="fileModel">长录音文件转写模型</label><input id="fileModel" value="qwen-audio-3.0-asr-flash-filetrans"><span class="field-hint">导入音频按 512KB 小块可靠传输；网络波动只重试当前小块，Mac 边接收边上传且不写入磁盘。</span></div>
             </div>
             <div class="button-row" style="margin-top:12px"><button class="secondary-button" id="testSpeech" type="button">测试语音连接</button><button class="text-button" id="deleteSpeechKey" type="button">删除语音 Key</button></div>
           </section>
@@ -461,6 +461,7 @@
     const FOUR_MINUTES = 240000;
     const TWO_HOURS = 7200000;
     const MAX_IMPORTED_AUDIO = 1024 * 1024 * 1024;
+    const IMPORT_UPLOAD_CHUNK = 512 * 1024;
     const IDLE_LOCK = 15 * 60 * 1000;
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
@@ -1032,59 +1033,50 @@
       } finally { clearTimeout(timer); }
     }
 
-    function validateDirectUpload(config) {
-      if (!config || typeof config !== "object") throw new Error("百炼直传配置缺失");
-      let url;
-      try { url = new URL(config.url); }
-      catch { throw new Error("百炼直传地址无效"); }
-      if (url.protocol !== "https:" || url.port || !/^dashscope-file-[a-z0-9-]+\.oss-[a-z0-9-]+\.aliyuncs\.com$/i.test(url.hostname)) {
-        throw new Error("百炼直传地址不在安全范围内");
-      }
-      const expected = ["OSSAccessKeyId", "Signature", "policy", "x-oss-object-acl", "x-oss-forbid-overwrite", "key", "success_action_status"];
-      if (!Array.isArray(config.fields) || config.fields.length !== expected.length) throw new Error("百炼直传凭证不完整");
-      const entries = config.fields.map(entry => Array.isArray(entry) ? [String(entry[0] || ""), String(entry[1] || "")] : ["", ""]);
-      if (!expected.every((name, index) => entries[index][0] === name && entries[index][1])) throw new Error("百炼直传凭证无效");
-      return {url:url.href, fields:entries, fileName:String(config.fileName || "meeting-audio")};
-    }
-
-    async function directOssUpload(config, blob) {
-      const safe = validateDirectUpload(config);
+    async function proxyChunk(path, blob, attempts = 3) {
       let lastError;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const form = new FormData();
-        safe.fields.forEach(([name, value]) => form.append(name, value));
-        // Bailian requires the file to be the last multipart field.
-        form.append("file", blob, safe.fileName);
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 70000);
         try {
-          await fetch(safe.url, {
-            method:"POST", body:form, mode:"no-cors", credentials:"omit",
-            cache:"no-store", referrerPolicy:"no-referrer"
+          const response = await fetch(proxyEndpoint(path), {
+            method:"PUT", headers:proxyHeaders(false), body:blob, signal:controller.signal
           });
-          return;
-        } catch (error) {
+          const data = await readProxyResponse(response, "录音分块上传失败");
+          if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "录音分块上传失败");
+          state.proxyFailures = 0;
+          return data;
+        } catch (rawError) {
+          const error = normalizeProxyNetworkError(rawError, "录音分块上传超时");
           lastError = error;
-          if (attempt === 0) await wait(1200);
-        }
+          if (attempt + 1 >= attempts || !error.retryable) throw error;
+          setConnection("busy", "上传波动，正在重试当前小块");
+          await wait(900 * (2 ** attempt) + Math.random() * 300);
+        } finally { clearTimeout(timer); }
       }
-      const error = new Error("手机直传百炼时网络中断");
-      error.code = "DIRECT_UPLOAD_FAILED";
-      error.cause = lastError;
-      throw error;
+      throw lastError || new Error("录音分块上传失败");
     }
 
-    async function uploadImportedBlob(prepared, blob) {
-      const sizeMB = Math.max(.1, blob.size / 1024 / 1024).toFixed(1);
-      if (prepared.directUpload && prepared.ossUrl) {
-        try {
-          showNotice(`正在从手机直接上传 ${sizeMB} MB 录音至百炼`, 28);
-          await directOssUpload(prepared.directUpload, blob);
-          return {ossUrl:prepared.ossUrl, method:"direct"};
-        } catch {
-          showNotice("手机直传出现波动，正在自动改用 Mac 转发", 30);
-        }
+    async function chunkedProxyUpload(prepared, blob) {
+      const uploadId = encodeURIComponent(prepared.uploadId);
+      const started = await proxyFetch(`/v1/speech/file/chunk/start/${uploadId}`, {}, 45000, {retries:2});
+      let offset = Number(started.acceptedBytes || 0);
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > blob.size) throw new Error("Mac 返回了无效的上传进度");
+      while (offset < blob.size) {
+        const end = Math.min(blob.size, offset + IMPORT_UPLOAD_CHUNK);
+        const result = await proxyChunk(
+          `/v1/speech/file/chunk/${uploadId}?offset=${offset}`,
+          blob.slice(offset, end),
+          3
+        );
+        const accepted = Number(result.acceptedBytes);
+        if (!Number.isSafeInteger(accepted) || accepted <= offset || accepted > blob.size) throw new Error("Mac 返回了无效的上传进度");
+        offset = accepted;
+        const percent = Math.max(1, Math.min(100, Math.round(offset / blob.size * 100)));
+        showNotice(`正在稳定上传录音 ${percent}%（断线只重试当前小块）`, 10 + offset / blob.size * 35);
       }
-      const uploaded = await proxyUpload(`/v1/speech/file/upload/${encodeURIComponent(prepared.uploadId)}`, blob);
-      return {ossUrl:uploaded.ossUrl, method:"proxy"};
+      const finished = await proxyFetch(`/v1/speech/file/chunk/finish/${uploadId}`, {}, 180000, {retries:2});
+      return {ossUrl:finished.ossUrl, method:"chunked-proxy"};
     }
 
     function setConnection(kind, text) {
@@ -1838,7 +1830,7 @@
       return result.text ? [{startSeconds:0, speaker:"发言人", text:result.text}] : [];
     }
 
-    async function transcribeImportedAudio({blob, name, size, mimeType, durationSeconds, checkpoint, onCheckpoint}) {
+    async function transcribeImportedAudio({blob, name, size, mimeType, durationSeconds, checkpoint, onCheckpoint, recoveryAttempted = false}) {
       checkpoint = checkpoint && typeof checkpoint === "object" ? checkpoint : {};
       if (!checkpoint.ossUrl && !checkpoint.taskId) {
         let prepared = null;
@@ -1852,23 +1844,40 @@
           await onCheckpoint(checkpoint);
         }
         try {
-          const uploaded = prepared
-            ? await uploadImportedBlob(prepared, blob)
-            : {...await proxyUpload(`/v1/speech/file/upload/${encodeURIComponent(checkpoint.uploadId)}`, blob), method:"proxy"};
+          const uploaded = await chunkedProxyUpload(prepared || {uploadId:checkpoint.uploadId}, blob);
           checkpoint = {ossUrl:uploaded.ossUrl, uploadedAt:new Date().toISOString(), uploadMethod:uploaded.method};
           await onCheckpoint(checkpoint);
         } catch (error) {
-          if (["UPLOAD_EXPIRED","FILE_SIZE_MISMATCH","HTTP_404","PROXY_NETWORK","PROXY_TIMEOUT","PROXY_RESPONSE_INCOMPLETE","OSS_UPLOAD_UNAVAILABLE","OSS_UPLOAD_TIMEOUT"].includes(error.code)) await onCheckpoint(null);
+          const expired = ["UPLOAD_EXPIRED","UPLOAD_SESSION_MISSING","HTTP_404","FILE_SIZE_MISMATCH","OSS_UPLOAD_REJECTED","OSS_UPLOAD_UNAVAILABLE","OSS_UPLOAD_TIMEOUT"].includes(error.code);
+          if (expired) await onCheckpoint(null);
+          if (expired && !recoveryAttempted) {
+            showNotice("上传会话已更新，正在自动重新开始", 5);
+            return transcribeImportedAudio({
+              blob, name, size, mimeType, durationSeconds, checkpoint:null, onCheckpoint, recoveryAttempted:true
+            });
+          }
           throw error;
         }
       }
       if (!checkpoint.taskId) {
         showNotice("正在启动长录音转写", 56);
-        const task = await proxyFetch("/v1/speech/file/start", {
-          provider:speechProviderPayload(), model:state.config.speech.fileModel,
-          ossUrl:checkpoint.ossUrl,
-          diarization:Boolean(durationSeconds && durationSeconds <= 2 * 60 * 60)
-        }, 45000);
+        let task;
+        try {
+          task = await proxyFetch("/v1/speech/file/start", {
+            provider:speechProviderPayload(), model:state.config.speech.fileModel,
+            ossUrl:checkpoint.ossUrl,
+            diarization:Boolean(durationSeconds && durationSeconds <= 2 * 60 * 60)
+          }, 45000);
+        } catch (error) {
+          if (error.code === "UPLOAD_RESOURCE_MISSING" && !recoveryAttempted) {
+            await onCheckpoint(null);
+            showNotice("检测到旧上传未落盘，正在自动切换稳定分块上传", 5);
+            return transcribeImportedAudio({
+              blob, name, size, mimeType, durationSeconds, checkpoint:null, onCheckpoint, recoveryAttempted:true
+            });
+          }
+          throw error;
+        }
         checkpoint.taskId = task.taskId;
         await onCheckpoint(checkpoint);
       }
