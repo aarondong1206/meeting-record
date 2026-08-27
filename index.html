@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#ffffff">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https:; img-src data: blob:; media-src blob:; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; connect-src https: wss: http://127.0.0.1:* ws://127.0.0.1:*; img-src data: blob:; media-src blob:; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>会议同步纪要</title>
   <style>
     :root {
@@ -293,8 +293,8 @@
         <span><strong>会议同步纪要</strong><small>录音保存在当前设备</small></span>
       </div>
       <div class="top-actions">
-        <button class="connection-pill" id="connectionPill" type="button" title="检查云端连接">
-          <span class="dot"></span><span id="connectionText">云端未设置</span>
+        <button class="connection-pill" id="connectionPill" type="button" title="检查 Mac 代理连接">
+          <span class="dot"></span><span id="connectionText">未连接 Mac</span>
         </button>
         <button class="icon-button" id="quickSettings" type="button" aria-label="打开设置">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"></path></svg>
@@ -305,7 +305,7 @@
     <main>
       <section class="view active" id="homeView" aria-labelledby="homeTitle">
         <div class="view-head">
-          <div><p class="eyebrow">本地优先</p><h1 id="homeTitle">开会时，只管说</h1><p class="subtle">录音持续保存在这台设备；结束后再通过云端转写和整理。</p></div>
+          <div><p class="eyebrow">本地优先</p><h1 id="homeTitle">开会时，只管说</h1><p class="subtle">录音保存在当前设备；Mac 代理在线时同步显示实时字幕。</p></div>
         </div>
 
         <div class="panel record-panel">
@@ -317,13 +317,17 @@
             <button class="secondary-button hidden" id="pauseButton" type="button">暂停</button>
             <button class="danger-button hidden" id="endButton" type="button">结束并保存</button>
           </div>
-          <div class="notice" id="recordNotice"><span class="notice-dot"></span><span><strong>离线也能录。</strong> 录音不依赖电脑或服务器，联网后再生成文字稿与纪要。</span></div>
+          <div class="notice" id="recordNotice"><span class="notice-dot"></span><span><strong>Mac 断开也能录。</strong> 实时字幕会暂停，本地录音不会中断，会后可补做转写。</span></div>
+          <div class="panel" style="margin-top:14px;padding:16px;text-align:left">
+            <div class="section-head"><h2 style="font-size:15px">实时字幕</h2><span class="count" id="liveState">等待开始</span></div>
+            <div class="live-copy" id="liveTranscript">开始会议后，这里会显示实时识别内容。</div>
+          </div>
         </div>
 
         <div class="grid home-grid">
           <section class="panel section-panel import-panel">
             <div class="import-icon" aria-hidden="true">＋</div>
-            <div class="section-head"><h2>导入已有录音</h2><span class="count">最大 2GB</span></div>
+            <div class="section-head"><h2>导入已有录音</h2><span class="count">最大 1GB</span></div>
             <p class="subtle">可从 iPhone / iPad 的“语音备忘录”选择共享并“存储到文件”，再在这里选择该录音；也支持常见音频文件。</p>
             <input class="hidden" id="audioImport" type="file" accept="audio/*,video/mp4,video/quicktime,.m4a,.mp3,.wav,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov">
             <button class="primary-button" id="chooseAudio" type="button">选择音频 / 录音</button>
@@ -358,7 +362,7 @@
       </section>
 
       <section class="view" id="settingsView" aria-labelledby="settingsTitle">
-        <div class="view-head"><div><p class="eyebrow">本地保险箱</p><h1 id="settingsTitle">连接与模型</h1><p class="subtle">Key、Workspace 和云端访问信息加密后只保存在这个浏览器。</p></div></div>
+        <div class="view-head"><div><p class="eyebrow">本地保险箱</p><h1 id="settingsTitle">连接与模型</h1><p class="subtle">Key、Workspace 和 Mac 代理配对信息加密后只保存在这个浏览器。</p></div></div>
         <div class="settings-grid">
           <section class="panel settings-card wide">
             <div class="section-head"><h2>保险箱</h2><button class="text-button" id="lockVault" type="button">立即锁定</button></div>
@@ -367,14 +371,14 @@
           </section>
 
           <section class="panel settings-card">
-            <h2>云端处理</h2>
-            <p>使用固定 Cloudflare Worker 地址，不需要启动 Mac 终端。音频只在转写期间临时存入私有空间。</p>
+            <h2>Mac 代理配对</h2>
+            <p>每次启动「启动会议代理」后，将 Mac 剪贴板中的配对信息粘贴到这里。</p>
             <div class="field-grid">
-              <div class="field"><label for="cloudSetup">一次性连接配置</label><input id="cloudSetup" type="password" autocomplete="off" spellcheck="false" placeholder='粘贴包含 Worker 地址和令牌的完整配置'><span class="field-hint">内容会隐藏显示；首次部署后粘贴一次即可，以后不需要重新配对。</span></div>
-              <div class="field"><label for="workerUrl">Worker 地址</label><input id="workerUrl" type="url" placeholder="https://meeting-minutes-cloud.你的账号.workers.dev" autocomplete="off"></div>
-              <div class="field"><label for="appToken">云端访问令牌</label><input id="appToken" type="password" placeholder="部署时生成的 APP_TOKEN" autocomplete="off"><span class="field-hint">令牌只加密保存在此浏览器，用于防止公开网页被他人调用。</span></div>
+              <div class="field"><label for="pairInput">配对信息</label><input id="pairInput" type="password" autocomplete="off" spellcheck="false" placeholder='粘贴 {"proxyUrl":"https://...","proxyToken":"..."}'><span class="field-hint">配对内容会隐藏显示，Quick Tunnel 地址变化后需重新粘贴。</span></div>
+              <div class="field"><label for="proxyUrl">代理地址</label><input id="proxyUrl" type="url" placeholder="https://随机名.trycloudflare.com" autocomplete="off"></div>
+              <div class="field"><label for="proxyToken">代理令牌</label><input id="proxyToken" type="password" placeholder="启动脚本生成的令牌" autocomplete="off"><span class="field-hint">令牌只加密保存在此浏览器。</span></div>
             </div>
-            <div class="button-row" style="margin-top:12px"><button class="primary-button" id="applyCloudSetup" type="button">应用连接配置</button><button class="secondary-button" id="testCloud" type="button">测试云端连接</button></div>
+            <div class="button-row" style="margin-top:12px"><button class="primary-button" id="applyPair" type="button">应用配对</button><button class="secondary-button" id="testProxy" type="button">测试代理</button></div>
           </section>
 
           <section class="panel settings-card">
@@ -384,7 +388,9 @@
               <div class="field"><label for="qwenKey">百炼 API Key</label><input id="qwenKey" type="password" autocomplete="off" placeholder="sk-ws… / sk-…"><span class="field-hint">请使用百炼按量付费 Key；不要使用以 sk-sp- 开头的 Token Plan Key。</span></div>
               <div class="field"><label for="workspaceId">Workspace ID / API Host（必填）</label><input id="workspaceId" autocomplete="off" spellcheck="false" placeholder="例如 ws-…，或粘贴完整 API Host"><span class="field-hint">推荐直接粘贴百炼 Key 页面显示的 API Host，页面会自动识别 Workspace 和区域；不要填写纯数字编号。</span></div>
               <div class="field"><label for="qwenRegion">区域</label><select id="qwenRegion"><option value="cn-beijing">中国大陆（北京）</option><option value="ap-southeast-1">国际（新加坡）</option></select></div>
-              <div class="field"><label for="fileModel">录音文件转写模型</label><input id="fileModel" value="qwen-audio-3.0-asr-flash-filetrans"><span class="field-hint">本机录音段和导入音频都使用文件转写，避免在浏览器或 Worker 中复制大段 Base64。</span></div>
+              <div class="field"><label for="liveModel">实时字幕模型</label><input id="liveModel" value="qwen-audio-3.0-asr-flash-streaming"></div>
+              <div class="field"><label for="finalModel">4 分钟录音校正模型</label><input id="finalModel" value="qwen-audio-3.0-asr-flash"></div>
+              <div class="field"><label for="fileModel">长录音文件转写模型</label><input id="fileModel" value="qwen-audio-3.0-asr-flash-filetrans"><span class="field-hint">导入的长音频通过 Mac 边接收边转发，Mac 不保存音频。</span></div>
             </div>
             <div class="button-row" style="margin-top:12px"><button class="secondary-button" id="testSpeech" type="button">测试语音连接</button><button class="text-button" id="deleteSpeechKey" type="button">删除语音 Key</button></div>
           </section>
@@ -415,7 +421,7 @@
 
           <section class="panel settings-card danger-zone">
             <h2>重置保险箱</h2>
-            <p>只删除加密保存的 Key、Workspace 和云端连接，不删除会议。</p>
+            <p>只删除加密保存的 Key、Workspace 和 Mac 代理配对，不删除会议。</p>
             <button class="danger-button" id="resetVault" type="button">重置保险箱</button>
           </section>
         </div>
@@ -433,7 +439,7 @@
     <form class="dialog-body" id="vaultForm" method="dialog">
       <div class="dialog-rule"></div>
       <h2 id="vaultDialogTitle">设置本机 PIN</h2>
-      <p id="vaultDialogCopy">PIN 用来在当前浏览器解锁模型 Key 和云端连接。PIN 不会被保存，忘记后只能重置保险箱。</p>
+      <p id="vaultDialogCopy">PIN 用来在当前浏览器解锁模型 Key 和 Mac 代理配对。PIN 不会被保存，忘记后只能重置保险箱。</p>
       <div class="field"><label for="pinInput">PIN（至少 6 位）</label><input class="pin-input" id="pinInput" type="password" inputmode="numeric" autocomplete="off" minlength="6"></div>
       <div class="field hidden" id="pinConfirmField" style="margin-top:10px"><label for="pinConfirm">再次输入</label><input class="pin-input" id="pinConfirm" type="password" inputmode="numeric" autocomplete="off" minlength="6"></div>
       <div class="error-copy" id="vaultError" role="alert"></div>
@@ -451,8 +457,7 @@
     const DB_VERSION = 3;
     const FOUR_MINUTES = 240000;
     const TWO_HOURS = 7200000;
-    const MAX_IMPORTED_AUDIO = 2 * 1024 * 1024 * 1024;
-    const UPLOAD_PART_SIZE = 10 * 1024 * 1024;
+    const MAX_IMPORTED_AUDIO = 1024 * 1024 * 1024;
     const IDLE_LOCK = 15 * 60 * 1000;
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
@@ -460,9 +465,10 @@
     const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
     const defaultConfig = () => ({
-      cloud: { workerUrl: "https://meeting-minutes-cloud.meeting-minutes-cloud-worker.workers.dev", appToken: "" },
+      proxy: { url: "", token: "" },
       speech: {
         type: "qwen", apiKey: "", workspaceId: "", region: "cn-beijing",
+        liveModel: "qwen-audio-3.0-asr-flash-streaming",
         finalModel: "qwen-audio-3.0-asr-flash", fileModel: "qwen-audio-3.0-asr-flash-filetrans"
       },
       text: {
@@ -502,7 +508,17 @@
       mindZoom: 1,
       idleTimer: null,
       lastInteraction: Date.now(),
-      processing: false
+      processing: false,
+      liveSocket: null,
+      liveAudioContext: null,
+      liveSource: null,
+      liveNode: null,
+      liveGain: null,
+      liveTaskId: "",
+      livePartial: "",
+      liveLastFinal: "",
+      liveReconnectTimer: null,
+      closingLive: false
     };
 
     const el = {
@@ -511,6 +527,7 @@
       start: $("#startButton"), pause: $("#pauseButton"), end: $("#endButton"),
       recordTime: $("#recordTime"), recordState: $("#recordState"), segmentState: $("#segmentState"),
       recordNotice: $("#recordNotice"), audioImport: $("#audioImport"),
+      liveTranscript: $("#liveTranscript"), liveState: $("#liveState"),
       meetingList: $("#meetingList"), meetingCount: $("#meetingCount"),
       detailTitle: $("#detailTitle"), detailMeta: $("#detailMeta"), detailContent: $("#detailContent"),
       processNotice: $("#processNotice"), processText: $("#processText"), processProgress: $("#processProgress"),
@@ -694,13 +711,13 @@
       state.vaultRecord = record;
       state.vaultKey = key;
       state.config = {...defaultConfig(), ...JSON.parse(decoder.decode(plain))};
-      state.config.cloud = {...defaultConfig().cloud, ...(state.config.cloud || {})};
+      state.config.proxy = {...defaultConfig().proxy, ...(state.config.proxy || {})};
       state.config.speech = {...defaultConfig().speech, ...(state.config.speech || {})};
       state.config.text = {...defaultConfig().text, ...(state.config.text || {})};
       fillSettings();
       updateVaultState();
       touchActivity();
-      await checkCloud(false);
+      await checkProxy(false);
     }
 
     function lockVault(showMessage = true) {
@@ -735,8 +752,8 @@
       el.vaultDialog.dataset.mode = change ? "change" : (setup ? "setup" : "unlock");
       el.vaultTitle.textContent = change ? "修改保险箱 PIN" : (setup ? "设置本机 PIN" : "解锁保险箱");
       el.vaultCopy.textContent = change
-        ? "新 PIN 会重新加密现有的模型与云端配置。"
-        : (setup ? "PIN 只用于当前浏览器，至少 6 位；忘记后只能重置保险箱。" : "输入 PIN 以读取加密保存的模型和云端配置。");
+        ? "新 PIN 会重新加密现有的模型与 Mac 代理配置。"
+        : (setup ? "PIN 只用于当前浏览器，至少 6 位；忘记后只能重置保险箱。" : "输入 PIN 以读取加密保存的模型和 Mac 代理配置。");
       el.pinConfirmField.classList.toggle("hidden", !setup && !change);
       el.vaultCancel.textContent = state.vaultRecord || change ? "取消" : "稍后处理";
       el.vaultError.textContent = "";
@@ -777,11 +794,13 @@
 
     function fillSettings() {
       const config = state.config || defaultConfig();
-      $("#workerUrl").value = state.config ? config.cloud.workerUrl : "";
-      $("#appToken").value = state.config ? config.cloud.appToken : "";
+      $("#proxyUrl").value = state.config ? config.proxy.url : "";
+      $("#proxyToken").value = state.config ? config.proxy.token : "";
       $("#qwenKey").value = state.config ? config.speech.apiKey : "";
       $("#workspaceId").value = state.config ? config.speech.workspaceId : "";
       $("#qwenRegion").value = config.speech.region;
+      $("#liveModel").value = config.speech.liveModel;
+      $("#finalModel").value = config.speech.finalModel;
       $("#fileModel").value = config.speech.fileModel;
       $("#textProvider").value = config.text.type;
       $("#textModel").value = config.text.model;
@@ -820,30 +839,33 @@
       return key;
     }
 
-    function readCloudSettings() {
+    function readProxySettings() {
       if (!state.config) throw new Error("请先解锁保险箱");
-      const workerUrl = $("#workerUrl").value.trim().replace(/\/$/, "");
-      const appToken = $("#appToken").value.trim();
+      const url = $("#proxyUrl").value.trim().replace(/\/$/, "");
+      const token = $("#proxyToken").value.trim();
       let parsed;
-      try { parsed = new URL(workerUrl); } catch { throw new Error("Worker 地址格式不正确"); }
-      if (parsed.protocol !== "https:" || parsed.port || parsed.search || parsed.hash) throw new Error("Worker 必须使用标准 HTTPS 地址");
-      if (appToken.length < 24 || /\s/.test(appToken)) throw new Error("云端访问令牌不完整，请重新复制");
-      state.config.cloud = {workerUrl, appToken};
-      return state.config.cloud;
+      try { parsed = new URL(url); } catch { throw new Error("Mac 代理地址格式不正确"); }
+      const local = parsed.protocol === "http:" && ["127.0.0.1","localhost"].includes(parsed.hostname);
+      if ((!local && parsed.protocol !== "https:") || parsed.username || parsed.password || parsed.search || parsed.hash) {
+        throw new Error("代理地址必须是 Quick Tunnel HTTPS 地址");
+      }
+      if (token.length < 32 || /\s/.test(token)) throw new Error("代理令牌不完整，请重新复制配对信息");
+      state.config.proxy = {url, token};
+      return state.config.proxy;
     }
 
-    async function applyCloudSetup() {
+    async function applyPairing() {
       if (!state.config) { openVaultDialog(); return; }
       try {
-        const setup = JSON.parse($("#cloudSetup").value.trim());
+        const setup = JSON.parse($("#pairInput").value.trim());
         if (!setup || typeof setup !== "object") throw new Error("连接配置格式不正确");
-        $("#workerUrl").value = String(setup.workerUrl || "");
-        $("#appToken").value = String(setup.appToken || "");
-        readCloudSettings();
+        $("#proxyUrl").value = String(setup.proxyUrl || "");
+        $("#proxyToken").value = String(setup.proxyToken || "");
+        readProxySettings();
         await saveVaultWithCurrentKey();
-        $("#cloudSetup").value = "";
-        toast("云端连接已加密保存");
-        await checkCloud(true);
+        $("#pairInput").value = "";
+        toast("Mac 代理配对已加密保存");
+        await checkProxy(true);
       } catch (error) { toast(error.message || "无法读取连接配置", "error"); }
     }
 
@@ -856,13 +878,14 @@
       $("#workspaceId").value = workspace.workspaceId;
       $("#qwenRegion").value = workspace.region;
       state.config = {
-        cloud: {
-          workerUrl:$("#workerUrl").value.trim().replace(/\/$/, ""),
-          appToken:$("#appToken").value.trim()
+        proxy: {
+          url:$("#proxyUrl").value.trim().replace(/\/$/, ""),
+          token:$("#proxyToken").value.trim()
         },
         speech: {
           type:"qwen", apiKey:speechKey, workspaceId:workspace.workspaceId,
-          region:workspace.region, finalModel:state.config.speech.finalModel || "qwen-audio-3.0-asr-flash", fileModel:$("#fileModel").value.trim()
+          region:workspace.region, liveModel:$("#liveModel").value.trim(),
+          finalModel:$("#finalModel").value.trim(), fileModel:$("#fileModel").value.trim()
         },
         text: {
           type, apiKey:key, baseUrl:$("#textBaseUrl").value.trim().replace(/\/$/, ""),
@@ -878,7 +901,7 @@
         readSettings();
         await saveVaultWithCurrentKey();
         toast("配置已加密保存");
-        await checkCloud(false);
+        await checkProxy(false);
       } catch (error) { toast(error.message, "error"); }
     }
 
@@ -908,56 +931,51 @@
       };
     }
 
-    function cloudHeaders(jsonBody = true) {
-      if (!state.config?.cloud?.appToken) throw new Error("请先填写云端访问令牌");
-      return {"Authorization":`Bearer ${state.config.cloud.appToken}`, ...(jsonBody ? {"Content-Type":"application/json"} : {})};
+    function proxyHeaders(jsonBody = true) {
+      if (!state.config?.proxy?.token) throw new Error("请先粘贴 Mac 代理配对信息");
+      return {"X-Proxy-Token":state.config.proxy.token, ...(jsonBody ? {"Content-Type":"application/json"} : {})};
     }
 
-    function cloudEndpoint(path) {
-      const base = state.config?.cloud?.workerUrl?.replace(/\/$/, "");
-      if (!base) throw new Error("请先填写 Cloudflare Worker 地址");
-      let parsed;
-      try { parsed = new URL(base); } catch { throw new Error("Worker 地址格式不正确"); }
-      if (parsed.protocol !== "https:" || parsed.port || parsed.search || parsed.hash) throw new Error("Worker 必须使用标准 HTTPS 地址");
+    function proxyEndpoint(path) {
+      const base = state.config?.proxy?.url?.replace(/\/$/, "");
+      if (!base) throw new Error("请先填写 Mac 代理地址");
       return `${base}${path}`;
     }
 
-    async function cloudFetch(path, body, timeout = 130000) {
+    function proxyFailure(data, status, fallback = "Mac 代理请求失败") {
+      const failure = new Error(data?.error?.message || data?.message || `${fallback}（${status}）`);
+      failure.code = data?.error?.code || data?.code || `HTTP_${status}`;
+      return failure;
+    }
+
+    async function proxyFetch(path, body, timeout = 130000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
       try {
-        const response = await fetch(cloudEndpoint(path), {method:"POST", headers:cloudHeaders(), body:JSON.stringify(body), signal:controller.signal});
+        const response = await fetch(proxyEndpoint(path), {method:"POST", headers:proxyHeaders(), body:JSON.stringify(body), signal:controller.signal});
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) {
-          const failure = new Error(data?.message || `云端返回 ${response.status}`);
-          failure.code = data?.code || `HTTP_${response.status}`;
-          throw failure;
-        }
+        if (!response.ok || !data.ok) throw proxyFailure(data, response.status);
         return data;
       } catch (error) {
-        if (error.name === "AbortError") throw new Error("云端请求超时，本地录音不受影响");
+        if (error.name === "AbortError") throw new Error("Mac 代理请求超时，本地录音不受影响");
         if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) {
-          throw new Error("无法连接云端服务，请检查网络和 Worker 地址");
+          throw new Error("无法连接 Mac 代理，请确认终端仍在运行并重新配对");
         }
         throw error;
       } finally { clearTimeout(timer); }
     }
 
-    async function cloudUploadPart(path, blob, timeout = 180000) {
+    async function proxyUpload(path, blob, timeout = 2 * 60 * 60 * 1000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
       try {
-        const response = await fetch(cloudEndpoint(path), {method:"PUT", headers:cloudHeaders(false), body:blob, signal:controller.signal});
+        const response = await fetch(proxyEndpoint(path), {method:"PUT", headers:proxyHeaders(false), body:blob, signal:controller.signal});
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) {
-          const failure = new Error(data?.message || `上传返回 ${response.status}`);
-          failure.code = data?.code || `HTTP_${response.status}`;
-          throw failure;
-        }
+        if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "音频上传失败");
         return data;
       } catch (error) {
-        if (error.name === "AbortError") throw new Error("这一段上传超时，可稍后继续");
-        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) throw new Error("上传中断，进度已保留，可稍后继续");
+        if (error.name === "AbortError") throw new Error("音频上传超时，请重试");
+        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) throw new Error("上传中断，请确认 Mac 代理在线后重试");
         throw error;
       } finally { clearTimeout(timer); }
     }
@@ -967,21 +985,21 @@
       el.connectionText.textContent = text;
     }
 
-    async function checkCloud(report = true) {
-      if (!state.config?.cloud?.workerUrl || !state.config?.cloud?.appToken) { setConnection("offline", "云端未设置"); return false; }
-      setConnection("busy", "正在检查云端");
+    async function checkProxy(report = true) {
+      if (!state.config?.proxy?.url || !state.config?.proxy?.token) { setConnection("offline", "未连接 Mac"); return false; }
+      setConnection("busy", "正在检查 Mac");
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch(cloudEndpoint("/healthz"), {signal:controller.signal, cache:"no-store", headers:cloudHeaders(false)});
+        const response = await fetch(proxyEndpoint("/healthz"), {signal:controller.signal, cache:"no-store", headers:proxyHeaders(false)});
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) throw new Error(data.message || "云端服务不可用");
-        setConnection("online", "云端可用");
-        if (report) toast("云端连接正常，不需要启动 Mac 终端");
+        if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "Mac 代理不可用");
+        setConnection("online", `代理在线 · ${Number(data.peakMemoryMB || 0).toFixed(1)}MB`);
+        if (report) toast("Mac 代理连接正常");
         return true;
       } catch (error) {
-        setConnection("offline", "云端不可用");
-        if (report) toast(error.name === "AbortError" ? "云端连接超时" : (error.message || "云端连接失败"), "error");
+        setConnection("offline", "未连接 Mac");
+        if (report) toast(error.name === "AbortError" ? "Mac 代理连接超时" : (error.message || "Mac 代理连接失败"), "error");
         return false;
       } finally { clearTimeout(timer); }
     }
@@ -990,7 +1008,7 @@
       try {
         readSettings();
         await saveVaultWithCurrentKey();
-        if (!await checkCloud(false)) throw new Error("云端服务尚未连接，请检查 Worker 地址和访问令牌");
+        if (!await checkProxy(false)) throw new Error("Mac 代理尚未连接，请先启动代理并粘贴配对信息");
         if (kind === "speech" && state.config.speech.apiKey.startsWith("sk-sp-")) {
           throw new Error("语音模型不能使用 Token Plan Key；请创建百炼按量付费 API Key");
         }
@@ -998,13 +1016,13 @@
           throw new Error("请填写百炼 ws-… / llm-… Workspace ID，不能填写纯数字编号");
         }
         const body = kind === "speech"
-          ? {kind:"speech", provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region, model:state.config.speech.fileModel}}
+          ? {kind:"speech", provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region, model:state.config.speech.liveModel}}
           : {kind:"text", provider:providerPayload()};
         setConnection("busy", "正在测试");
-        const result = await cloudFetch("/v1/providers/test", body, 30000);
+        const result = await proxyFetch("/v1/providers/test", body, 30000);
         toast(result.message || "模型连接正常");
-        setConnection("online", "云端可用");
-      } catch (error) { toast(error.message, "error"); await checkCloud(false); }
+        setConnection("online", "代理在线");
+      } catch (error) { toast(error.message, "error"); await checkProxy(false); }
     }
 
     async function loadMeetings() {
@@ -1167,7 +1185,7 @@
       state.activeMeeting.chat.push({role:"user", text:question, createdAt:new Date().toISOString()});
       renderChat();
       try {
-        const result = await cloudFetch("/v1/text/chat", {provider:providerPayload(), transcript, question});
+        const result = await proxyFetch("/v1/text/chat", {provider:providerPayload(), transcript, question});
         state.activeMeeting.chat.push({role:"assistant", text:result.answer, citations:result.citations || [], createdAt:new Date().toISOString()});
         await persistActiveMeeting();
       } catch (error) {
@@ -1211,6 +1229,180 @@
       return options.find(type => window.MediaRecorder?.isTypeSupported(type)) || "";
     }
 
+    function liveWebSocketUrl() {
+      const target = new URL(proxyEndpoint("/v1/speech/live"));
+      target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
+      return target.toString();
+    }
+
+    function renderLiveTranscript() {
+      if (!state.activeMeeting) return;
+      const finalized = (state.activeMeeting.transcript || [])
+        .filter(item => item.source === "live")
+        .slice(-8)
+        .map(item => item.text)
+        .join("\n");
+      el.liveTranscript.textContent = [finalized, state.livePartial].filter(Boolean).join("\n") || "正在倾听…";
+      el.liveTranscript.scrollTop = el.liveTranscript.scrollHeight;
+    }
+
+    async function startLiveAudio(stream) {
+      if (state.liveAudioContext || !state.liveSocket || state.liveSocket.readyState !== WebSocket.OPEN) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass || !window.AudioWorkletNode) throw new Error("当前浏览器不支持实时音频处理");
+      const context = new AudioContextClass();
+      const workletCode = `
+        class MeetingPCMProcessor extends AudioWorkletProcessor {
+          constructor() { super(); this.samples = []; this.target = Math.max(1, Math.round(sampleRate / 10)); }
+          process(inputs) {
+            const input = inputs[0] && inputs[0][0];
+            if (!input) return true;
+            for (let i = 0; i < input.length; i++) this.samples.push(input[i]);
+            while (this.samples.length >= this.target) {
+              const source = this.samples.splice(0, this.target);
+              const output = new Int16Array(1600);
+              const ratio = source.length / output.length;
+              for (let i = 0; i < output.length; i++) {
+                const value = Math.max(-1, Math.min(1, source[Math.min(source.length - 1, Math.floor(i * ratio))] || 0));
+                output[i] = value < 0 ? value * 32768 : value * 32767;
+              }
+              this.port.postMessage(output.buffer, [output.buffer]);
+            }
+            return true;
+          }
+        }
+        registerProcessor("meeting-pcm-processor", MeetingPCMProcessor);
+      `;
+      const moduleUrl = URL.createObjectURL(new Blob([workletCode], {type:"text/javascript"}));
+      try { await context.audioWorklet.addModule(moduleUrl); }
+      finally { URL.revokeObjectURL(moduleUrl); }
+      const source = context.createMediaStreamSource(stream);
+      const node = new AudioWorkletNode(context, "meeting-pcm-processor", {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1]});
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      node.port.onmessage = event => {
+        if (!state.paused && state.liveSocket?.readyState === WebSocket.OPEN && event.data?.byteLength <= 64 * 1024) {
+          state.liveSocket.send(event.data);
+        }
+      };
+      source.connect(node); node.connect(gain); gain.connect(context.destination);
+      state.liveAudioContext = context; state.liveSource = source; state.liveNode = node; state.liveGain = gain;
+      await context.resume();
+    }
+
+    async function stopLiveAudio() {
+      for (const item of [state.liveSource, state.liveNode, state.liveGain]) {
+        try { item?.disconnect(); } catch {}
+      }
+      state.liveSource = null; state.liveNode = null; state.liveGain = null;
+      if (state.liveAudioContext) await state.liveAudioContext.close().catch(() => {});
+      state.liveAudioContext = null;
+    }
+
+    function handleLiveResult(data) {
+      const header = data?.header || {};
+      if (header.event === "task-failed") {
+        throw new Error(header.error_message || "Qwen 实时语音任务失败");
+      }
+      if (header.event !== "result-generated") return;
+      const sentence = data?.payload?.output?.sentence || data?.payload?.output || {};
+      const text = String(sentence.text || sentence.transcript || "").trim();
+      if (!text) return;
+      state.livePartial = text;
+      const sentenceEnd = Boolean(sentence.sentence_end ?? sentence.is_final ?? sentence.final);
+      if (sentenceEnd && state.activeMeeting) {
+        const startSeconds = Math.max(0, Number(sentence.begin_time || 0) / 1000);
+        const key = `${Math.round(startSeconds * 10)}:${text}`;
+        if (state.liveLastFinal !== key) {
+          state.liveLastFinal = key;
+          state.activeMeeting.transcript.push({
+            id:`S${state.activeMeeting.transcript.length + 1}`,
+            startSeconds,
+            timestamp:formatClock(startSeconds),
+            speaker:sentence.speaker_id == null ? "发言人" : `发言人 ${Number(sentence.speaker_id) + 1}`,
+            text,
+            source:"live",
+            sourceSegment:Math.floor(startSeconds / 240)
+          });
+          state.livePartial = "";
+          persistActiveMeeting().catch(() => {});
+        }
+      }
+      renderLiveTranscript();
+    }
+
+    async function connectLiveSpeech(stream = state.stream) {
+      clearTimeout(state.liveReconnectTimer);
+      if (!state.recording || !stream || !state.config?.proxy?.url || !state.config?.proxy?.token || !state.config?.speech?.apiKey) {
+        el.liveState.textContent = "未连接";
+        return false;
+      }
+      state.closingLive = false;
+      try {
+        const socket = new WebSocket(liveWebSocketUrl());
+        state.liveSocket = socket;
+        el.liveState.textContent = "正在连接";
+        socket.onopen = () => socket.send(JSON.stringify({
+          proxyToken:state.config.proxy.token,
+          provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region}
+        }));
+        socket.onmessage = async event => {
+          if (typeof event.data !== "string") return;
+          let data;
+          try { data = JSON.parse(event.data); } catch { return; }
+          if (data.type === "proxy-error") {
+            el.liveState.textContent = "字幕暂停";
+            toast(data.message || "实时字幕不可用，本地录音仍在继续", "error");
+            socket.close();
+            return;
+          }
+          if (data.type === "proxy-ready") {
+            state.liveTaskId = crypto.randomUUID ? crypto.randomUUID() : randomId("task");
+            socket.send(JSON.stringify({
+              header:{action:"run-task", task_id:state.liveTaskId, streaming:"duplex"},
+              payload:{task_group:"audio", task:"asr", function:"recognition", model:state.config.speech.liveModel, parameters:{format:"pcm", sample_rate:16000}, input:{}}
+            }));
+            return;
+          }
+          if (data?.header?.event === "task-started") {
+            el.liveState.textContent = "实时识别中";
+            try { await startLiveAudio(stream); }
+            catch (error) { toast(error.message, "error"); socket.close(); }
+            return;
+          }
+          try { handleLiveResult(data); }
+          catch (error) { toast(error.message, "error"); socket.close(); }
+        };
+        socket.onerror = () => { el.liveState.textContent = "字幕暂停"; };
+        socket.onclose = async () => {
+          if (state.liveSocket === socket) state.liveSocket = null;
+          await stopLiveAudio();
+          if (state.recording && !state.closingLive) {
+            el.liveState.textContent = "等待重连";
+            state.liveReconnectTimer = setTimeout(() => connectLiveSpeech().catch(() => {}), 3000);
+          }
+        };
+        return true;
+      } catch {
+        el.liveState.textContent = "字幕暂停";
+        return false;
+      }
+    }
+
+    async function disconnectLiveSpeech() {
+      state.closingLive = true;
+      clearTimeout(state.liveReconnectTimer);
+      const socket = state.liveSocket;
+      if (socket?.readyState === WebSocket.OPEN && state.liveTaskId) {
+        socket.send(JSON.stringify({header:{action:"finish-task", task_id:state.liveTaskId, streaming:"duplex"}, payload:{input:{}}}));
+        await wait(500);
+      }
+      try { socket?.close(); } catch {}
+      state.liveSocket = null; state.liveTaskId = ""; state.livePartial = "";
+      await stopLiveAudio();
+      el.liveState.textContent = "已结束";
+    }
+
     async function startMeeting() {
       if (state.recording) return;
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
@@ -1239,6 +1431,9 @@
       renderMeetingList();
       await requestWakeLock();
       await beginRecorderSegment();
+      state.livePartial = ""; state.liveLastFinal = "";
+      el.liveTranscript.textContent = "正在连接实时字幕…";
+      connectLiveSpeech().catch(() => {});
       updateRecordingUI();
       state.ticker = setInterval(updateTimer, 250);
       document.body.classList.add("is-recording");
@@ -1265,7 +1460,7 @@
         try {
           await state.partWriteChain;
           const duration = Math.max(0, currentElapsed() - state.segmentStartedElapsed);
-          state.activeMeeting.audioSegments.push({index:state.segmentIndex, startSeconds:state.segmentStartedElapsed, durationSeconds:Math.min(240, duration), mimeType:state.recorder?.mimeType || mimeType || "audio/webm", partCount:state.segmentPart, corrected:false, cloudCheckpoint:null});
+          state.activeMeeting.audioSegments.push({index:state.segmentIndex, startSeconds:state.segmentStartedElapsed, durationSeconds:Math.min(240, duration), mimeType:state.recorder?.mimeType || mimeType || "audio/webm", partCount:state.segmentPart, corrected:false});
           state.segmentIndex++;
           await persistActiveMeeting();
           if (state.rotateAfterStop && state.recording) {
@@ -1300,12 +1495,14 @@
         state.paused = true;
         state.pausedAtMono = performance.now();
         if (state.recorder.state === "recording") state.recorder.pause();
+        await state.liveAudioContext?.suspend().catch(() => {});
         clearTimeout(state.segmentTimer);
         state.segmentRemaining = Math.max(1000, state.segmentRemaining - (performance.now() - state.segmentStartedTimerAt));
       } else {
         state.paused = false;
         state.pausedTotal += performance.now() - state.pausedAtMono;
         if (state.recorder.state === "paused") state.recorder.resume();
+        await state.liveAudioContext?.resume().catch(() => {});
         scheduleSegmentRotation(state.segmentRemaining);
       }
       updateRecordingUI();
@@ -1350,6 +1547,7 @@
       }
       if (state.recorderStopPromise) await state.recorderStopPromise;
       await state.partWriteChain;
+      await disconnectLiveSpeech();
       state.stream?.getTracks().forEach(track => track.stop());
       state.stream = null;
       if (state.wakeLock) await state.wakeLock.release().catch(() => {});
@@ -1365,7 +1563,7 @@
       toast(reason || "会议已保存在这台设备");
       const id = state.activeMeeting.id;
       await openMeeting(id);
-      if (state.config?.cloud?.workerUrl && state.config?.cloud?.appToken && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
+      if (state.config?.proxy?.url && state.config?.proxy?.token && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
     }
 
     function audioMimeFromName(name, supplied = "") {
@@ -1398,7 +1596,7 @@
       const extension = String(file.name || "").toLowerCase().split(".").pop();
       const allowed = new Set(["m4a","mp3","wav","aac","flac","ogg","opus","webm","mp4","mov","amr"]);
       if (!allowed.has(extension) && !/^audio\//.test(file.type || "")) { toast("请选择常见音频或语音备忘录文件", "error"); return; }
-      if (!file.size || file.size > MAX_IMPORTED_AUDIO) { toast("音频文件必须小于 2GB", "error"); return; }
+      if (!file.size || file.size > MAX_IMPORTED_AUDIO) { toast("音频文件必须小于 1GB（百炼临时存储限制）", "error"); return; }
       $("#chooseAudio").disabled = true;
       try {
         if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
@@ -1424,7 +1622,7 @@
         updateStorage();
         toast("录音已保存在当前设备");
         await openMeeting(meetingId);
-        if (state.config?.cloud?.workerUrl && state.config?.cloud?.appToken && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
+        if (state.config?.proxy?.url && state.config?.proxy?.token && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
       } catch (error) {
         toast(error.message || "无法导入音频", "error");
       } finally {
@@ -1437,70 +1635,77 @@
       return new Promise(resolve => setTimeout(resolve, milliseconds));
     }
 
-    async function transcribeAudioBlob({blob, size, mimeType, durationSeconds, checkpoint, onCheckpoint, label = "录音"}) {
-      checkpoint = checkpoint?.objectKey ? checkpoint : {parts:[]};
-      if (!checkpoint.objectKey || !checkpoint.uploadId) {
-        showNotice("正在建立安全上传任务", 3);
-        const started = await cloudFetch("/v2/uploads/start", {size, contentType:mimeType});
-        Object.assign(checkpoint, {objectKey:started.objectKey, uploadId:started.uploadId, partSize:started.partSize || UPLOAD_PART_SIZE, parts:[], uploadComplete:false});
-        await onCheckpoint(checkpoint);
-      }
-      if (!checkpoint.uploadComplete) {
-        const partSize = checkpoint.partSize || UPLOAD_PART_SIZE;
-        let offset = checkpoint.parts.length * partSize;
-        while (offset < size) {
-          const partNumber = checkpoint.parts.length + 1;
-          const end = Math.min(size, offset + partSize);
-          showNotice(`正在上传${label} ${Math.round(offset / size * 100)}%`, 5 + offset / size * 47);
-          const part = await cloudUploadPart(`/v2/uploads/part?key=${encodeURIComponent(checkpoint.objectKey)}&uploadId=${encodeURIComponent(checkpoint.uploadId)}&partNumber=${partNumber}`, blob.slice(offset, end));
-          checkpoint.parts.push({partNumber:part.partNumber, etag:part.etag});
+    function speechProviderPayload() {
+      if (!state.config?.speech?.apiKey) throw new Error("请先在设置中填写百炼 API Key");
+      return {
+        type:"qwen", apiKey:state.config.speech.apiKey,
+        workspaceId:state.config.speech.workspaceId, region:state.config.speech.region
+      };
+    }
+
+    async function transcribeRecordedSegment(blob, mimeType, durationSeconds) {
+      if (blob.size > 12 * 1024 * 1024) throw new Error("这一段录音超过 12MB，请降低录音码率后重试");
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const audioBase64 = toBase64(bytes);
+      const result = await proxyFetch("/v1/speech/final", {
+        provider:speechProviderPayload(), model:state.config.speech.finalModel,
+        audioBase64, mimeType, durationSeconds
+      }, 180000);
+      return result.text ? [{startSeconds:0, speaker:"发言人", text:result.text}] : [];
+    }
+
+    async function transcribeImportedAudio({blob, name, size, mimeType, durationSeconds, checkpoint, onCheckpoint}) {
+      checkpoint = checkpoint && typeof checkpoint === "object" ? checkpoint : {};
+      if (!checkpoint.ossUrl && !checkpoint.taskId) {
+        if (!checkpoint.uploadId) {
+          showNotice("正在准备长录音上传", 5);
+          const prepared = await proxyFetch("/v1/speech/file/prepare", {
+            provider:speechProviderPayload(), model:state.config.speech.fileModel,
+            fileName:name, fileSize:size, contentType:mimeType
+          }, 45000);
+          checkpoint = {uploadId:prepared.uploadId, preparedAt:new Date().toISOString()};
           await onCheckpoint(checkpoint);
-          offset = end;
         }
-        showNotice("正在确认音频上传", 54);
-        await cloudFetch("/v2/uploads/complete", {objectKey:checkpoint.objectKey, uploadId:checkpoint.uploadId, parts:checkpoint.parts});
-        checkpoint.uploadComplete = true;
-        await onCheckpoint(checkpoint);
+        showNotice("正在通过 Mac 流式上传录音；请保持页面和终端开启", 28);
+        try {
+          const uploaded = await proxyUpload(`/v1/speech/file/upload/${encodeURIComponent(checkpoint.uploadId)}`, blob);
+          checkpoint = {ossUrl:uploaded.ossUrl, uploadedAt:new Date().toISOString()};
+          await onCheckpoint(checkpoint);
+        } catch (error) {
+          if (["UPLOAD_EXPIRED","FILE_SIZE_MISMATCH","HTTP_404"].includes(error.code)) await onCheckpoint(null);
+          throw error;
+        }
       }
       if (!checkpoint.taskId) {
-        showNotice("云端正在启动录音转写", 58);
-        const task = await cloudFetch("/v2/transcriptions/start", {
-          provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region},
-          objectKey:checkpoint.objectKey, model:state.config.speech.fileModel,
+        showNotice("正在启动长录音转写", 56);
+        const task = await proxyFetch("/v1/speech/file/start", {
+          provider:speechProviderPayload(), model:state.config.speech.fileModel,
+          ossUrl:checkpoint.ossUrl,
           diarization:Boolean(durationSeconds && durationSeconds <= 2 * 60 * 60)
         }, 45000);
         checkpoint.taskId = task.taskId;
         await onCheckpoint(checkpoint);
       }
       for (let poll = 0; poll < 240; poll++) {
-        showNotice("正在识别录音并区分发言人；可以暂时离开此页面", Math.min(88, 60 + poll / 8));
-        let result;
-        try {
-          result = await cloudFetch("/v2/transcriptions/poll", {
-            provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region},
-            objectKey:checkpoint.objectKey, taskId:checkpoint.taskId
-          }, 45000);
-        } catch (error) {
-          if (["AUDIO_NOT_FOUND","TRANSCRIPTION_FAILED","RESULT_URL_MISSING"].includes(error.code)) {
-            await onCheckpoint(null);
-          }
-          throw error;
-        }
+        showNotice("正在识别长录音并区分发言人", Math.min(90, 60 + poll / 8));
+        const result = await proxyFetch("/v1/speech/file/poll", {
+          provider:speechProviderPayload(), model:state.config.speech.fileModel, taskId:checkpoint.taskId
+        }, 45000);
         if (result.status === "SUCCEEDED") {
-          await onCheckpoint({transcribedAt:new Date().toISOString()});
-          return result.transcript || [];
+          await onCheckpoint({transcribedAt:new Date().toISOString(), taskId:checkpoint.taskId});
+          return result.segments || [];
         }
         await wait(Math.min(30000, 5000 + poll * 1000));
       }
-      throw new Error("录音仍在云端排队，稍后再次点击即可继续查询");
+      throw new Error("录音仍在百炼排队，稍后再次点击可继续查询");
     }
 
     async function transcribeImportedMeeting(meeting) {
       if (meeting.transcript?.length && meeting.audioSegments?.[0]?.corrected) return;
       const record = await getImportForMeeting(meeting.id);
       if (!record?.blob) throw new Error("导入的原始音频已从浏览器中删除");
-      const transcript = await transcribeAudioBlob({
-        blob:record.blob, size:record.size, mimeType:record.mimeType, durationSeconds:record.durationSeconds,
+      const transcript = await transcribeImportedAudio({
+        blob:record.blob, name:record.name, size:record.size, mimeType:record.mimeType, durationSeconds:record.durationSeconds,
         checkpoint:record.checkpoint,
         onCheckpoint:async value => { record.checkpoint = value; await dbPut("imports", record); },
         label:"导入录音"
@@ -1522,7 +1727,7 @@
       $("#processMeeting").disabled = true;
       try {
         const meeting = state.activeMeeting;
-        if (!await checkCloud(false)) throw new Error("云端服务尚未连接，请检查网络与 Worker 设置");
+        if (!await checkProxy(false)) throw new Error("Mac 代理尚未连接，请先启动「启动会议代理」并重新配对");
         if (meeting.source === "import") {
           await transcribeImportedMeeting(meeting);
         } else {
@@ -1534,12 +1739,7 @@
             const blobs = segmentParts.map(part => part.blob);
             if (!blobs.length) throw new Error(`第 ${segment.index + 1} 段本地音频缺失`);
             const blob = new Blob(blobs, {type:segment.mimeType});
-            const recognized = await transcribeAudioBlob({
-              blob, size:blob.size, mimeType:segment.mimeType, durationSeconds:segment.durationSeconds,
-              checkpoint:segment.cloudCheckpoint,
-              onCheckpoint:async value => { segment.cloudCheckpoint = value; await persistActiveMeeting(); },
-              label:`第 ${segment.index + 1} 段`
-            });
+            const recognized = await transcribeRecordedSegment(blob, segment.mimeType, segment.durationSeconds);
             const segmentStart = Number(segment.startSeconds ?? segment.index * 240);
             meeting.transcript = meeting.transcript.filter(item => item.sourceSegment !== segment.index);
             recognized.forEach(item => {
@@ -1560,7 +1760,7 @@
         const transcript = transcriptForModel(meeting);
         if (!transcript) throw new Error("还没有可整理的文字稿");
         showNotice("正在生成结构化纪要和思维导图", 82);
-        const result = await cloudFetch("/v1/text/analyze", {provider:providerPayload(), transcript}, 180000);
+        const result = await proxyFetch("/v1/text/analyze", {provider:providerPayload(), transcript}, 180000);
         meeting.analysis = result.analysis;
         meeting.title = result.analysis.title || meeting.title;
         el.detailTitle.value = meeting.title;
@@ -1631,9 +1831,6 @@
       if (!confirm(`确定删除“${state.activeMeeting.title}”及其本地录音吗？此操作无法撤销。`)) return;
       const id = state.activeMeeting.id;
       const imported = state.activeMeeting.source === "import" ? await getImportForMeeting(id) : null;
-      if (imported?.checkpoint?.uploadId && !imported.checkpoint.uploadComplete && state.config) {
-        await cloudFetch("/v2/uploads/abort", {objectKey:imported.checkpoint.objectKey, uploadId:imported.checkpoint.uploadId}, 15000).catch(() => {});
-      }
       await deleteAudioParts(id);
       if (imported) await dbDelete("imports", imported.id);
       await dbDelete("meetings", id);
@@ -1654,10 +1851,10 @@
     }
 
     async function resetVault() {
-      if (!confirm("确定重置保险箱吗？已保存的 Key、Workspace 和云端连接将被删除，会议不会删除。")) return;
+      if (!confirm("确定重置保险箱吗？已保存的 Key、Workspace 和 Mac 代理配对将被删除，会议不会删除。")) return;
       await dbDelete("vault", "primary");
       state.vaultRecord = null; state.vaultKey = null; state.config = null;
-      fillSettings(); updateVaultState(); setConnection("offline", "云端未设置");
+      fillSettings(); updateVaultState(); setConnection("offline", "未连接 Mac");
       toast("保险箱已重置"); openVaultDialog("setup");
     }
 
@@ -1671,7 +1868,7 @@
     function bindEvents() {
       $$(".nav-button").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
       $("#quickSettings").addEventListener("click", () => showView("settings"));
-      el.connectionPill.addEventListener("click", () => checkCloud(true));
+      el.connectionPill.addEventListener("click", () => checkProxy(true));
       el.start.addEventListener("click", startMeeting);
       $("#chooseAudio").addEventListener("click", () => el.audioImport.click());
       el.audioImport.addEventListener("change", () => importAudioFile(el.audioImport.files?.[0]));
@@ -1704,13 +1901,13 @@
       el.vaultCancel.addEventListener("click", event => { event.preventDefault(); el.vaultDialog.close(); });
       $("#textProvider").addEventListener("change", () => updateProviderFields(true));
       $("#saveSettings").addEventListener("click", saveSettings);
-      $("#applyCloudSetup").addEventListener("click", applyCloudSetup);
-      $("#testCloud").addEventListener("click", async () => {
-        if ($("#cloudSetup").value.trim()) {
-          await applyCloudSetup();
+      $("#applyPair").addEventListener("click", applyPairing);
+      $("#testProxy").addEventListener("click", async () => {
+        if ($("#pairInput").value.trim()) {
+          await applyPairing();
           return;
         }
-        try { readCloudSettings(); await saveVaultWithCurrentKey(); await checkCloud(true); }
+        try { readProxySettings(); await saveVaultWithCurrentKey(); await checkProxy(true); }
         catch (error) { toast(error.message, "error"); }
       });
       $("#testSpeech").addEventListener("click", () => testProvider("speech"));
@@ -1720,7 +1917,7 @@
       $("#resetVault").addEventListener("click", resetVault);
       ["pointerdown","keydown","touchstart"].forEach(name => document.addEventListener(name, touchActivity, {passive:true}));
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.recording) requestWakeLock(); });
-      window.addEventListener("online", () => checkCloud(false));
+      window.addEventListener("online", () => checkProxy(false));
       window.addEventListener("offline", () => setConnection("offline", "网络离线"));
       window.addEventListener("beforeunload", event => { if (state.recording) { event.preventDefault(); event.returnValue = ""; } });
     }
@@ -1742,7 +1939,7 @@
       }
     }
 
-    window.__meetingApp = {state, openMeeting, showView, checkCloud, processActiveMeeting, importAudioFile};
+    window.__meetingApp = {state, openMeeting, showView, checkProxy, connectLiveSpeech, processActiveMeeting, importAudioFile};
     init();
   })();
   </script>
