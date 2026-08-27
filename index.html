@@ -181,6 +181,8 @@
     .transcript-row .speaker { margin-top: 6px; color: var(--red-dark); font-weight: 650; }
     .transcript-row textarea { min-height: 76px; padding: 9px; resize: vertical; line-height: 1.6; }
     .transcript-row input:focus, .transcript-row textarea:focus { border-color: var(--red-line); background: #fff; outline: 0; }
+    .transcript-tools { margin-bottom: 12px; padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+    .transcript-tools p { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 
     .mind-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .mind-actions { display: flex; gap: 6px; }
@@ -345,7 +347,8 @@
         <input class="detail-title-input" id="detailTitle" value="会议" aria-label="会议标题">
         <div class="detail-meta" id="detailMeta"></div>
         <div class="button-row">
-          <button class="primary-button" id="processMeeting" type="button">补做转写并生成纪要</button>
+          <button class="primary-button hidden" id="quickMinutes" type="button">快速生成纪要</button>
+          <button class="secondary-button" id="processMeeting" type="button">精校录音并整理</button>
           <button class="secondary-button" id="exportMarkdown" type="button">导出 Markdown</button>
           <button class="secondary-button" id="printMeeting" type="button">打印 / PDF</button>
           <button class="danger-button" id="deleteMeeting" type="button">删除会议</button>
@@ -518,6 +521,12 @@
       livePartial: "",
       liveLastFinal: "",
       liveReconnectTimer: null,
+      liveReconnectAttempts: 0,
+      liveHandshakeTimer: null,
+      liveConnecting: false,
+      proxyMonitor: null,
+      proxyCheckInFlight: null,
+      proxyFailures: 0,
       closingLive: false
     };
 
@@ -717,6 +726,7 @@
       fillSettings();
       updateVaultState();
       touchActivity();
+      startProxyMonitor();
       await checkProxy(false);
     }
 
@@ -780,6 +790,7 @@
           state.config = config;
           fillSettings();
           updateVaultState();
+          startProxyMonitor();
         }
         el.vaultDialog.close();
         toast(mode === "change" ? "PIN 已更新" : "保险箱已解锁");
@@ -865,6 +876,7 @@
         await saveVaultWithCurrentKey();
         $("#pairInput").value = "";
         toast("Mac 代理配对已加密保存");
+        startProxyMonitor();
         await checkProxy(true);
       } catch (error) { toast(error.message || "无法读取连接配置", "error"); }
     }
@@ -945,24 +957,59 @@
     function proxyFailure(data, status, fallback = "Mac 代理请求失败") {
       const failure = new Error(data?.error?.message || data?.message || `${fallback}（${status}）`);
       failure.code = data?.error?.code || data?.code || `HTTP_${status}`;
+      failure.status = status;
+      failure.retryable = [408, 425, 429, 502, 503, 504].includes(status) || failure.code === "PROXY_RESPONSE_INCOMPLETE";
       return failure;
     }
 
-    async function proxyFetch(path, body, timeout = 130000) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
-      try {
-        const response = await fetch(proxyEndpoint(path), {method:"POST", headers:proxyHeaders(), body:JSON.stringify(body), signal:controller.signal});
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) throw proxyFailure(data, response.status);
-        return data;
-      } catch (error) {
-        if (error.name === "AbortError") throw new Error("Mac 代理请求超时，本地录音不受影响");
-        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) {
-          throw new Error("无法连接 Mac 代理，请确认终端仍在运行并重新配对");
-        }
-        throw error;
-      } finally { clearTimeout(timer); }
+    async function readProxyResponse(response, fallback = "Mac 代理请求失败") {
+      const text = await response.text();
+      if (!text.trim()) {
+        throw proxyFailure({error:{code:"PROXY_RESPONSE_INCOMPLETE", message:`${fallback}：连接中断，代理返回为空`}}, response.status || 502, fallback);
+      }
+      try { return JSON.parse(text); }
+      catch {
+        throw proxyFailure({error:{code:"PROXY_RESPONSE_INCOMPLETE", message:`${fallback}：连接中断，响应不完整`}}, response.status || 502, fallback);
+      }
+    }
+
+    function normalizeProxyNetworkError(error, timeoutMessage = "Mac 代理请求超时，本地录音不受影响") {
+      if (error.name === "AbortError") {
+        const timeoutError = new Error(timeoutMessage);
+        timeoutError.code = "PROXY_TIMEOUT";
+        timeoutError.retryable = true;
+        return timeoutError;
+      }
+      if (error instanceof TypeError || /load failed|failed to fetch|networkerror|unexpected eof|json parse/i.test(error.message || "")) {
+        const networkError = new Error("Mac 代理连接暂时中断，正在尝试恢复");
+        networkError.code = "PROXY_NETWORK";
+        networkError.retryable = true;
+        return networkError;
+      }
+      return error;
+    }
+
+    async function proxyFetch(path, body, timeout = 130000, options = {}) {
+      const retries = Math.max(0, Math.min(2, Number(options.retries || 0)));
+      let lastError;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeout);
+        try {
+          const response = await fetch(proxyEndpoint(path), {method:"POST", headers:proxyHeaders(), body:JSON.stringify(body), signal:controller.signal});
+          const data = await readProxyResponse(response);
+          if (!response.ok || !data.ok) throw proxyFailure(data, response.status);
+          state.proxyFailures = 0;
+          return data;
+        } catch (rawError) {
+          const error = normalizeProxyNetworkError(rawError);
+          lastError = error;
+          if (attempt >= retries || !error.retryable) throw error;
+          setConnection("busy", "Mac 连接波动，正在恢复");
+          await wait(900 * (2 ** attempt) + Math.random() * 350);
+        } finally { clearTimeout(timer); }
+      }
+      throw lastError || new Error("Mac 代理请求失败");
     }
 
     async function proxyUpload(path, blob, timeout = 2 * 60 * 60 * 1000) {
@@ -970,12 +1017,17 @@
       const timer = setTimeout(() => controller.abort(), timeout);
       try {
         const response = await fetch(proxyEndpoint(path), {method:"PUT", headers:proxyHeaders(false), body:blob, signal:controller.signal});
-        const data = await response.json().catch(() => ({}));
+        const data = await readProxyResponse(response, "音频上传失败");
         if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "音频上传失败");
         return data;
-      } catch (error) {
+      } catch (rawError) {
+        const error = normalizeProxyNetworkError(rawError, "音频上传超时，请重试");
         if (error.name === "AbortError") throw new Error("音频上传超时，请重试");
-        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) throw new Error("上传中断，请确认 Mac 代理在线后重试");
+        if (error.retryable) {
+          const uploadError = new Error("上传中断；原录音仍在本机，Mac 恢复后可重试");
+          uploadError.code = error.code;
+          throw uploadError;
+        }
         throw error;
       } finally { clearTimeout(timer); }
     }
@@ -987,21 +1039,42 @@
 
     async function checkProxy(report = true) {
       if (!state.config?.proxy?.url || !state.config?.proxy?.token) { setConnection("offline", "未连接 Mac"); return false; }
-      setConnection("busy", "正在检查 Mac");
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      try {
-        const response = await fetch(proxyEndpoint("/healthz"), {signal:controller.signal, cache:"no-store", headers:proxyHeaders(false)});
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "Mac 代理不可用");
-        setConnection("online", `代理在线 · ${Number(data.peakMemoryMB || 0).toFixed(1)}MB`);
-        if (report) toast("Mac 代理连接正常");
-        return true;
-      } catch (error) {
-        setConnection("offline", "未连接 Mac");
-        if (report) toast(error.name === "AbortError" ? "Mac 代理连接超时" : (error.message || "Mac 代理连接失败"), "error");
-        return false;
-      } finally { clearTimeout(timer); }
+      if (state.proxyCheckInFlight) return state.proxyCheckInFlight;
+      state.proxyCheckInFlight = (async () => {
+        if (report) setConnection("busy", "正在检查 Mac");
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          const response = await fetch(proxyEndpoint("/healthz"), {signal:controller.signal, cache:"no-store", headers:proxyHeaders(false)});
+          const data = await readProxyResponse(response, "Mac 代理检查失败");
+          if (!response.ok || !data.ok) throw proxyFailure(data, response.status, "Mac 代理不可用");
+          state.proxyFailures = 0;
+          setConnection("online", `代理在线 · ${Number(data.peakMemoryMB || 0).toFixed(1)}MB`);
+          if (report) toast("Mac 代理连接正常");
+          return true;
+        } catch (rawError) {
+          const error = normalizeProxyNetworkError(rawError, "Mac 代理连接超时");
+          state.proxyFailures += 1;
+          if (report || state.proxyFailures >= 2) setConnection("offline", "未连接 Mac");
+          else setConnection("busy", "Mac 连接波动");
+          if (report) toast(error.message || "Mac 代理连接失败", "error");
+          return false;
+        } finally { clearTimeout(timer); }
+      })();
+      try { return await state.proxyCheckInFlight; }
+      finally { state.proxyCheckInFlight = null; }
+    }
+
+    function startProxyMonitor() {
+      clearInterval(state.proxyMonitor);
+      state.proxyMonitor = setInterval(async () => {
+        if (document.visibilityState !== "visible" || !navigator.onLine || !state.config?.proxy?.url) return;
+        const recovered = await checkProxy(false);
+        if (recovered && state.recording && (!state.liveSocket || state.liveSocket.readyState >= WebSocket.CLOSING)) {
+          state.liveReconnectAttempts = 0;
+          connectLiveSpeech().catch(() => {});
+        }
+      }, 12000);
     }
 
     async function testProvider(kind) {
@@ -1019,7 +1092,7 @@
           ? {kind:"speech", provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region, model:state.config.speech.liveModel}}
           : {kind:"text", provider:providerPayload()};
         setConnection("busy", "正在测试");
-        const result = await proxyFetch("/v1/providers/test", body, 30000);
+        const result = await proxyFetch("/v1/providers/test", body, 30000, {retries:1});
         toast(result.message || "模型连接正常");
         setConnection("online", "代理在线");
       } catch (error) { toast(error.message, "error"); await checkProxy(false); }
@@ -1077,7 +1150,12 @@
       if (!meeting) return;
       const pending = (meeting.audioSegments || []).filter(segment => !segment.corrected).length;
       el.detailMeta.innerHTML = `<span>${escapeHTML(formatDate(meeting.startedAt))}</span><span>时长 ${formatClock(meeting.elapsedSeconds || 0)}</span><span>${meeting.transcript?.length || 0} 段文字</span><span>${pending ? (meeting.source === "import" ? "录音待转写" : `${pending} 个录音段待转写`) : "音频已处理"}</span>`;
-      $("#processMeeting").textContent = meeting.analysis ? "重新生成纪要" : "转写并生成纪要";
+      const hasTranscript = Boolean(meeting.transcript?.some(item => String(item.text || "").trim()));
+      $("#quickMinutes").classList.toggle("hidden", !hasTranscript);
+      $("#quickMinutes").textContent = meeting.analysis ? "根据当前文字重新生成" : "快速生成纪要";
+      $("#processMeeting").textContent = pending
+        ? (meeting.source === "import" ? "转写录音并整理" : "精校录音并重新整理")
+        : "完整重新生成纪要";
     }
 
     function renderDetail() {
@@ -1100,9 +1178,14 @@
     function renderMinutes() {
       const analysis = state.activeMeeting.analysis;
       if (!analysis) { el.detailContent.innerHTML = emptyDetail("纪要尚未生成", "先完成转写，联网并连接云端后即可生成结构化纪要。"); return; }
+      const sourceNotice = state.activeMeeting.analysisStale
+        ? `<div class="notice warning"><span class="notice-dot"></span><span><strong>文字稿已修改。</strong> 请点“根据修改重新生成”，当前纪要尚未更新。</span></div>`
+        : state.activeMeeting.analysisSource === "live-draft"
+          ? `<div class="notice warning"><span class="notice-dot"></span><span><strong>这是快速纪要。</strong> 它基于实时字幕；可继续“精校录音”，或在文字稿中纠错后重新生成。</span></div>`
+          : "";
       const topics = analysis.topics?.length ? analysis.topics.map(topic => `<div class="topic"><h3>${escapeHTML(topic.title)}</h3>${listHTML(topic.details)}</div>`).join("") : `<p class="subtle">暂无议题</p>`;
       const actions = analysis.actionItems?.length ? `<div class="table-wrap"><table class="action-table"><thead><tr><th>行动</th><th>负责人</th><th>日期</th><th>状态</th></tr></thead><tbody>${analysis.actionItems.map(item => `<tr><td>${escapeHTML(item.task)}</td><td>${escapeHTML(item.owner)}</td><td>${escapeHTML(item.due)}</td><td>${escapeHTML(item.status)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="subtle">暂无行动项</p>`;
-      el.detailContent.innerHTML = `<div class="summary-lead">${escapeHTML(analysis.summary)}</div>
+      el.detailContent.innerHTML = `${sourceNotice}<div class="summary-lead">${escapeHTML(analysis.summary)}</div>
         <div class="grid minutes-grid">
           <section class="panel minutes-card"><h2>核心议题</h2>${topics}</section>
           <section class="panel minutes-card"><h2>结论与决定</h2>${listHTML(analysis.decisions)}</section>
@@ -1115,7 +1198,7 @@
     function renderTranscript() {
       const transcript = state.activeMeeting.transcript || [];
       if (!transcript.length) { el.detailContent.innerHTML = emptyDetail("文字稿为空", "音频仍在本地保存；联网后可以补做转写。"); return; }
-      el.detailContent.innerHTML = `<div class="transcript-list">${transcript.map((segment, index) => `<article class="transcript-row" data-transcript-index="${index}">
+      el.detailContent.innerHTML = `<div class="transcript-tools"><p>可直接修改时间、发言人和识别错字。修改只保存在当前设备，不会改动原录音。</p><div class="button-row"><button class="secondary-button" data-transcript-action="save" type="button">保存文字修改</button><button class="primary-button" data-transcript-action="regenerate" type="button">保存并重新生成纪要</button></div></div><div class="transcript-list">${transcript.map((segment, index) => `<article class="transcript-row" data-transcript-index="${index}">
         <div><input class="timestamp" value="${escapeHTML(segment.timestamp || formatClock(segment.startSeconds || 0))}" aria-label="时间戳"><input class="speaker" value="${escapeHTML(segment.speaker || "发言人")}" aria-label="发言人"></div>
         <textarea aria-label="转写内容">${escapeHTML(segment.text || "")}</textarea>
       </article>`).join("")}</div>`;
@@ -1185,7 +1268,7 @@
       state.activeMeeting.chat.push({role:"user", text:question, createdAt:new Date().toISOString()});
       renderChat();
       try {
-        const result = await proxyFetch("/v1/text/chat", {provider:providerPayload(), transcript, question});
+        const result = await proxyFetch("/v1/text/chat", {provider:providerPayload(), transcript, question}, 130000, {retries:1});
         state.activeMeeting.chat.push({role:"assistant", text:result.answer, citations:result.citations || [], createdAt:new Date().toISOString()});
         await persistActiveMeeting();
       } catch (error) {
@@ -1205,17 +1288,28 @@
       renderDetailMeta();
     }
 
-    async function saveTranscriptEdits() {
-      if (!state.activeMeeting || state.activeTab !== "transcript") return;
+    async function saveTranscriptEdits(options = {}) {
+      if (!state.activeMeeting || state.activeTab !== "transcript") return false;
+      let changed = false;
       $$(".transcript-row", el.detailContent).forEach(row => {
         const index = Number(row.dataset.transcriptIndex);
         const item = state.activeMeeting.transcript[index];
         if (!item) return;
-        item.timestamp = $(".timestamp", row).value.trim();
-        item.speaker = $(".speaker", row).value.trim() || "发言人";
-        item.text = $("textarea", row).value.trim();
+        const timestamp = $(".timestamp", row).value.trim();
+        const speaker = $(".speaker", row).value.trim() || "发言人";
+        const text = $("textarea", row).value.trim();
+        if (timestamp !== item.timestamp || speaker !== item.speaker || text !== item.text) changed = true;
+        item.timestamp = timestamp;
+        item.speaker = speaker;
+        item.text = text;
       });
-      await persistActiveMeeting();
+      if (changed) {
+        state.activeMeeting.transcriptEditedAt = new Date().toISOString();
+        state.activeMeeting.analysisStale = Boolean(state.activeMeeting.analysis);
+        await persistActiveMeeting();
+      }
+      if (options.announce) toast(changed ? "文字修改已保存" : "文字稿已是最新");
+      return changed;
     }
 
     async function requestWakeLock() {
@@ -1331,17 +1425,35 @@
       renderLiveTranscript();
     }
 
+    function scheduleLiveReconnect() {
+      clearTimeout(state.liveReconnectTimer);
+      if (!state.recording || state.closingLive) return;
+      const delay = Math.min(15000, 1200 * (2 ** Math.min(state.liveReconnectAttempts++, 4)));
+      el.liveState.textContent = `等待重连 · ${Math.ceil(delay / 1000)}秒`;
+      state.liveReconnectTimer = setTimeout(() => connectLiveSpeech().catch(() => {}), delay);
+    }
+
     async function connectLiveSpeech(stream = state.stream) {
       clearTimeout(state.liveReconnectTimer);
       if (!state.recording || !stream || !state.config?.proxy?.url || !state.config?.proxy?.token || !state.config?.speech?.apiKey) {
         el.liveState.textContent = "未连接";
         return false;
       }
+      if (state.liveSocket && [WebSocket.CONNECTING, WebSocket.OPEN].includes(state.liveSocket.readyState)) return true;
+      if (state.liveConnecting) return false;
+      state.liveConnecting = true;
       state.closingLive = false;
       try {
         const socket = new WebSocket(liveWebSocketUrl());
         state.liveSocket = socket;
         el.liveState.textContent = "正在连接";
+        clearTimeout(state.liveHandshakeTimer);
+        state.liveHandshakeTimer = setTimeout(() => {
+          if (state.liveSocket === socket && socket.readyState < WebSocket.CLOSING) {
+            el.liveState.textContent = "连接超时，即将重试";
+            socket.close();
+          }
+        }, 15000);
         socket.onopen = () => socket.send(JSON.stringify({
           proxyToken:state.config.proxy.token,
           provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region}
@@ -1365,6 +1477,9 @@
             return;
           }
           if (data?.header?.event === "task-started") {
+            clearTimeout(state.liveHandshakeTimer);
+            state.liveReconnectAttempts = 0;
+            state.proxyFailures = 0;
             el.liveState.textContent = "实时识别中";
             try { await startLiveAudio(stream); }
             catch (error) { toast(error.message, "error"); socket.close(); }
@@ -1373,18 +1488,26 @@
           try { handleLiveResult(data); }
           catch (error) { toast(error.message, "error"); socket.close(); }
         };
-        socket.onerror = () => { el.liveState.textContent = "字幕暂停"; };
+        socket.onerror = () => {
+          el.liveState.textContent = "字幕暂停";
+          if (socket.readyState < WebSocket.CLOSING) socket.close();
+        };
         socket.onclose = async () => {
-          if (state.liveSocket === socket) state.liveSocket = null;
+          clearTimeout(state.liveHandshakeTimer);
+          if (state.liveSocket !== socket) return;
+          state.liveSocket = null;
+          state.liveConnecting = false;
           await stopLiveAudio();
           if (state.recording && !state.closingLive) {
-            el.liveState.textContent = "等待重连";
-            state.liveReconnectTimer = setTimeout(() => connectLiveSpeech().catch(() => {}), 3000);
+            scheduleLiveReconnect();
           }
         };
+        state.liveConnecting = false;
         return true;
       } catch {
+        state.liveConnecting = false;
         el.liveState.textContent = "字幕暂停";
+        scheduleLiveReconnect();
         return false;
       }
     }
@@ -1392,6 +1515,9 @@
     async function disconnectLiveSpeech() {
       state.closingLive = true;
       clearTimeout(state.liveReconnectTimer);
+      clearTimeout(state.liveHandshakeTimer);
+      state.liveReconnectAttempts = 0;
+      state.liveConnecting = false;
       const socket = state.liveSocket;
       if (socket?.readyState === WebSocket.OPEN && state.liveTaskId) {
         socket.send(JSON.stringify({header:{action:"finish-task", task_id:state.liveTaskId, streaming:"duplex"}, payload:{input:{}}}));
@@ -1563,7 +1689,10 @@
       toast(reason || "会议已保存在这台设备");
       const id = state.activeMeeting.id;
       await openMeeting(id);
-      if (state.config?.proxy?.url && state.config?.proxy?.token && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
+      if (state.config?.proxy?.url && state.config?.proxy?.token && state.config?.speech?.apiKey && navigator.onLine) {
+        const hasLiveText = state.activeMeeting.transcript?.some(item => String(item.text || "").trim());
+        (hasLiveText ? quickGenerateActiveMeeting() : processActiveMeeting()).catch(() => {});
+      }
     }
 
     function audioMimeFromName(name, supplied = "") {
@@ -1650,7 +1779,7 @@
       const result = await proxyFetch("/v1/speech/final", {
         provider:speechProviderPayload(), model:state.config.speech.finalModel,
         audioBase64, mimeType, durationSeconds
-      }, 180000);
+      }, 180000, {retries:1});
       return result.text ? [{startSeconds:0, speaker:"发言人", text:result.text}] : [];
     }
 
@@ -1662,7 +1791,7 @@
           const prepared = await proxyFetch("/v1/speech/file/prepare", {
             provider:speechProviderPayload(), model:state.config.speech.fileModel,
             fileName:name, fileSize:size, contentType:mimeType
-          }, 45000);
+          }, 45000, {retries:1});
           checkpoint = {uploadId:prepared.uploadId, preparedAt:new Date().toISOString()};
           await onCheckpoint(checkpoint);
         }
@@ -1672,7 +1801,7 @@
           checkpoint = {ossUrl:uploaded.ossUrl, uploadedAt:new Date().toISOString()};
           await onCheckpoint(checkpoint);
         } catch (error) {
-          if (["UPLOAD_EXPIRED","FILE_SIZE_MISMATCH","HTTP_404"].includes(error.code)) await onCheckpoint(null);
+          if (["UPLOAD_EXPIRED","FILE_SIZE_MISMATCH","HTTP_404","PROXY_NETWORK","PROXY_TIMEOUT","PROXY_RESPONSE_INCOMPLETE","OSS_UPLOAD_UNAVAILABLE","OSS_UPLOAD_TIMEOUT"].includes(error.code)) await onCheckpoint(null);
           throw error;
         }
       }
@@ -1690,7 +1819,7 @@
         showNotice("正在识别长录音并区分发言人", Math.min(90, 60 + poll / 8));
         const result = await proxyFetch("/v1/speech/file/poll", {
           provider:speechProviderPayload(), model:state.config.speech.fileModel, taskId:checkpoint.taskId
-        }, 45000);
+        }, 45000, {retries:2});
         if (result.status === "SUCCEEDED") {
           await onCheckpoint({transcribedAt:new Date().toISOString(), taskId:checkpoint.taskId});
           return result.segments || [];
@@ -1718,6 +1847,57 @@
       meeting.audioSegments[0].corrected = true;
       meeting.status = "transcribed";
       await persistActiveMeeting();
+    }
+
+    async function generateAnalysisFromTranscript(meeting, source = "corrected", notice = "正在生成结构化纪要和思维导图") {
+      const transcript = transcriptForModel(meeting);
+      if (!transcript) throw new Error("还没有可整理的文字稿");
+      showNotice(notice, source === "live-draft" ? 45 : 82);
+      const result = await proxyFetch("/v1/text/analyze", {provider:providerPayload(), transcript}, 180000, {retries:1});
+      meeting.analysis = result.analysis;
+      meeting.analysisSource = source;
+      meeting.analysisStale = false;
+      meeting.title = result.analysis.title || meeting.title;
+      el.detailTitle.value = meeting.title;
+      await persistActiveMeeting();
+    }
+
+    function showCompletedAnalysis() {
+      showNotice("纪要已生成", 100);
+      setTimeout(clearNotice, 2200);
+      state.activeTab = "minutes";
+      $$("#detailTabs .tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === "minutes"));
+      renderDetail();
+    }
+
+    async function quickGenerateActiveMeeting(sourceOverride = "") {
+      if (state.processing || !state.activeMeeting) return;
+      if (!state.config) { openVaultDialog(); return; }
+      state.processing = true;
+      $("#quickMinutes").disabled = true;
+      $("#processMeeting").disabled = true;
+      try {
+        await saveTranscriptEdits();
+        if (!await checkProxy(false)) throw new Error("Mac 代理正在恢复，请稍后重试");
+        const meeting = state.activeMeeting;
+        const source = sourceOverride || (meeting.transcriptEditedAt ? "edited" : "live-draft");
+        await generateAnalysisFromTranscript(meeting, source, source === "live-draft" ? "正在根据实时文字快速生成纪要" : "正在根据修改后的文字重新生成");
+        showCompletedAnalysis();
+      } catch (error) {
+        showNotice(`处理暂停：${error.message}`);
+        toast(error.message, "error");
+      } finally {
+        state.processing = false;
+        $("#quickMinutes").disabled = false;
+        $("#processMeeting").disabled = false;
+      }
+    }
+
+    async function regenerateFromEditedTranscript() {
+      await saveTranscriptEdits({announce:false});
+      if (!state.activeMeeting) return;
+      state.activeMeeting.analysisSource = "edited";
+      await quickGenerateActiveMeeting("edited");
     }
 
     async function processActiveMeeting() {
@@ -1757,19 +1937,9 @@
           meeting.transcript.forEach((item, index) => { item.id = `S${index + 1}`; });
           await persistActiveMeeting();
         }
-        const transcript = transcriptForModel(meeting);
-        if (!transcript) throw new Error("还没有可整理的文字稿");
-        showNotice("正在生成结构化纪要和思维导图", 82);
-        const result = await proxyFetch("/v1/text/analyze", {provider:providerPayload(), transcript}, 180000);
-        meeting.analysis = result.analysis;
-        meeting.title = result.analysis.title || meeting.title;
-        el.detailTitle.value = meeting.title;
-        await persistActiveMeeting();
-        showNotice("纪要已生成", 100);
-        setTimeout(clearNotice, 2200);
-        state.activeTab = "minutes";
-        $$("#detailTabs .tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === "minutes"));
-        renderDetail();
+        meeting.transcriptEditedAt = null;
+        await generateAnalysisFromTranscript(meeting, "corrected");
+        showCompletedAnalysis();
       } catch (error) {
         showNotice(`处理暂停：${error.message}`);
         toast(error.message, "error");
@@ -1884,12 +2054,16 @@
       el.detailTitle.addEventListener("change", async () => { if (state.activeMeeting) { state.activeMeeting.title = el.detailTitle.value.trim() || "未命名会议"; await persistActiveMeeting(); } });
       el.detailContent.addEventListener("change", event => { if (event.target.matches(".transcript-row input,.transcript-row textarea")) saveTranscriptEdits(); });
       el.detailContent.addEventListener("click", event => {
+        const transcriptAction = event.target.closest("[data-transcript-action]")?.dataset.transcriptAction;
+        if (transcriptAction === "save") { saveTranscriptEdits({announce:true}); return; }
+        if (transcriptAction === "regenerate") { regenerateFromEditedTranscript(); return; }
         const action = event.target.closest("[data-mind]")?.dataset.mind;
         if (!action) return;
         if (action === "png") return exportMindPng();
         state.mindZoom = Math.max(.5, Math.min(2, state.mindZoom + (action === "in" ? .15 : -.15)));
         const svg = $("#mindSvg"); if (svg) svg.style.transform = `scale(${state.mindZoom})`;
       });
+      $("#quickMinutes").addEventListener("click", () => quickGenerateActiveMeeting());
       $("#processMeeting").addEventListener("click", processActiveMeeting);
       $("#exportMarkdown").addEventListener("click", exportMarkdown);
       $("#printMeeting").addEventListener("click", () => window.print());
@@ -1916,8 +2090,22 @@
       $("#deleteTextKey").addEventListener("click", () => deleteKey("text"));
       $("#resetVault").addEventListener("click", resetVault);
       ["pointerdown","keydown","touchstart"].forEach(name => document.addEventListener(name, touchActivity, {passive:true}));
-      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.recording) requestWakeLock(); });
-      window.addEventListener("online", () => checkProxy(false));
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        if (state.recording) requestWakeLock();
+        checkProxy(false).then(online => {
+          if (online && state.recording && (!state.liveSocket || state.liveSocket.readyState >= WebSocket.CLOSING)) {
+            state.liveReconnectAttempts = 0;
+            connectLiveSpeech().catch(() => {});
+          }
+        });
+      });
+      window.addEventListener("online", () => {
+        state.proxyFailures = 0;
+        checkProxy(false).then(online => {
+          if (online && state.recording) connectLiveSpeech().catch(() => {});
+        });
+      });
       window.addEventListener("offline", () => setConnection("offline", "网络离线"));
       window.addEventListener("beforeunload", event => { if (state.recording) { event.preventDefault(); event.returnValue = ""; } });
     }
@@ -1932,6 +2120,7 @@
         updateVaultState();
         updateStorage();
         updateRecordingUI();
+        startProxyMonitor();
         if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
         setTimeout(() => openVaultDialog(state.vaultRecord ? "unlock" : "setup"), 250);
       } catch (error) {
