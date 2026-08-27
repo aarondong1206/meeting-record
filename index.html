@@ -1,0 +1,1746 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https:; img-src data: blob:; media-src blob:; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>会议同步纪要</title>
+  <style>
+    :root {
+      --red: #d31145;
+      --red-dark: #a90e38;
+      --red-soft: #fff0f4;
+      --red-line: #f2bac9;
+      --charcoal: #333d47;
+      --ink: #1f2730;
+      --muted: #67737f;
+      --line: #dfe4e8;
+      --panel: #ffffff;
+      --canvas: #f5f7f8;
+      --success: #15734b;
+      --success-soft: #ebf7f1;
+      --warning: #9a5a00;
+      --warning-soft: #fff6e7;
+      --shadow: 0 16px 42px rgba(31, 39, 48, .09);
+      --radius-lg: 22px;
+      --radius-md: 15px;
+      --radius-sm: 10px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--canvas); scroll-behavior: smooth; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: var(--canvas); }
+    body.is-recording { background: #f9f6f7; }
+    button, input, textarea, select { font: inherit; }
+    button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .52; }
+    :focus-visible { outline: 3px solid rgba(211, 17, 69, .26); outline-offset: 2px; }
+    .hidden { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    .app-shell { width: min(100%, 1180px); margin: 0 auto; min-height: 100vh; background: var(--canvas); }
+    .topbar {
+      position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: rgba(255, 255, 255, .94); border-bottom: 1px solid rgba(223, 228, 232, .9);
+      backdrop-filter: blur(14px);
+    }
+    .brand { display: flex; align-items: center; min-width: 0; gap: 11px; }
+    .brand-rule { width: 4px; height: 28px; border-radius: 99px; background: var(--red); flex: 0 0 auto; }
+    .brand strong { display: block; font-size: 17px; letter-spacing: .02em; color: var(--charcoal); }
+    .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .connection-pill {
+      min-height: 44px; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line);
+      display: inline-flex; align-items: center; gap: 7px; background: #fff; color: var(--muted); font-size: 12px;
+    }
+    .connection-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #aeb6bd; }
+    .connection-pill.online { color: var(--success); border-color: #b9decf; background: var(--success-soft); }
+    .connection-pill.online .dot { background: var(--success); }
+    .connection-pill.busy { color: var(--warning); border-color: #edd3a8; background: var(--warning-soft); }
+    .icon-button {
+      min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; padding: 0;
+      border: 1px solid var(--line); border-radius: 12px; color: var(--charcoal); background: #fff;
+    }
+    .icon-button:hover { border-color: #bec7ce; background: #f9fafb; }
+    .icon-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    main { padding: 18px 14px calc(92px + var(--safe-bottom)); }
+    .view { display: none; animation: view-in .2s ease-out; }
+    .view.active { display: block; }
+    @keyframes view-in { from { opacity: .35; transform: translateY(4px); } }
+    .view-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 4px 2px 18px; }
+    .eyebrow { margin: 0 0 6px; color: var(--red); font-weight: 750; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 5px; color: var(--charcoal); font-size: clamp(24px, 6vw, 34px); line-height: 1.16; letter-spacing: -.035em; }
+    h2 { margin-bottom: 12px; color: var(--charcoal); font-size: 20px; letter-spacing: -.015em; }
+    h3 { margin-bottom: 8px; color: var(--charcoal); font-size: 15px; }
+    .subtle { margin-bottom: 0; color: var(--muted); line-height: 1.6; font-size: 13px; }
+
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: 0 1px 0 rgba(31,39,48,.02); }
+    .record-panel { padding: 18px; overflow: hidden; position: relative; }
+    .record-panel::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--red); transform: scaleX(0); transform-origin: left; transition: transform .3s ease; }
+    body.is-recording .record-panel::before { transform: scaleX(1); }
+    .record-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .record-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 650; }
+    .record-label .pulse { width: 10px; height: 10px; border: 2px solid #aeb6bd; border-radius: 50%; }
+    body.is-recording .record-label { color: var(--red); }
+    body.is-recording .record-label .pulse { border-color: var(--red); background: var(--red); animation: pulse 1.35s infinite; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(211,17,69,0); } 0% { box-shadow: 0 0 0 0 rgba(211,17,69,.26); } }
+    .record-time { margin: 22px 0 18px; color: var(--charcoal); text-align: center; font-size: clamp(38px, 12vw, 62px); line-height: 1; font-variant-numeric: tabular-nums; font-weight: 680; letter-spacing: -.055em; }
+    .wave { height: 38px; display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 18px; }
+    .wave i { display: block; width: 3px; height: 8px; border-radius: 99px; background: #c9d0d5; }
+    body.is-recording .wave i { background: var(--red-line); animation: wave 1s ease-in-out infinite alternate; }
+    body.is-recording .wave i:nth-child(3n) { animation-delay: -.5s; }
+    body.is-recording .wave i:nth-child(2n) { animation-delay: -.25s; }
+    @keyframes wave { to { height: 31px; background: var(--red); } }
+    .record-controls { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .primary-button, .secondary-button, .danger-button, .text-button {
+      min-height: 48px; border-radius: 13px; padding: 11px 16px; font-weight: 720; border: 1px solid transparent;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .primary-button { background: var(--red); color: #fff; box-shadow: 0 8px 20px rgba(211,17,69,.18); }
+    .primary-button:hover { background: var(--red-dark); }
+    .secondary-button { background: #fff; color: var(--charcoal); border-color: var(--line); }
+    .secondary-button:hover { background: #f7f8f9; border-color: #bec7ce; }
+    .danger-button { background: var(--red-soft); color: var(--red-dark); border-color: var(--red-line); }
+    .text-button { min-height: 44px; padding-inline: 10px; color: var(--red); background: transparent; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .button-row > button { flex: 1 1 130px; }
+
+    .notice { margin-top: 12px; border: 1px solid var(--line); border-radius: 13px; padding: 11px 12px; display: flex; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; background: #fafbfb; }
+    .notice strong { color: var(--ink); }
+    .notice.warning { border-color: #edd3a8; color: #7c4d0c; background: var(--warning-soft); }
+    .notice.success { border-color: #b9decf; color: var(--success); background: var(--success-soft); }
+    .notice-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+
+    .grid { display: grid; gap: 14px; }
+    .home-grid { margin-top: 14px; }
+    .section-panel { padding: 17px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .section-head h2, .section-head h3 { margin: 0; }
+    .count { color: var(--muted); font-size: 12px; }
+    .live-copy { min-height: 104px; max-height: 260px; overflow: auto; line-height: 1.8; color: var(--ink); font-size: 15px; white-space: pre-wrap; }
+    .placeholder { color: #939da6; }
+    .local-chip { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; padding: 5px 8px; color: var(--success); background: var(--success-soft); border-radius: 7px; font-size: 11px; }
+    .import-icon { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 13px; color: var(--red); background: var(--red-soft); border-radius: 14px; font-size: 24px; }
+    .import-panel .primary-button { width: 100%; margin-top: 14px; }
+
+    .meeting-list { display: grid; gap: 10px; }
+    .meeting-card { width: 100%; padding: 14px; text-align: left; background: #fff; color: inherit; border: 1px solid var(--line); border-radius: 14px; }
+    .meeting-card:hover { border-color: #bdc6cd; box-shadow: 0 8px 22px rgba(31,39,48,.06); }
+    .meeting-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .meeting-card strong { display: block; line-height: 1.4; color: var(--charcoal); }
+    .meeting-card p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .state-badge { flex: 0 0 auto; padding: 5px 7px; border-radius: 7px; background: #eef1f3; color: var(--muted); font-size: 10px; }
+    .state-badge.ready { color: var(--success); background: var(--success-soft); }
+    .state-badge.pending { color: var(--warning); background: var(--warning-soft); }
+    .empty-state { padding: 25px 12px; text-align: center; border: 1px dashed #cdd4d9; border-radius: 14px; color: var(--muted); }
+    .empty-state .empty-line { width: 42px; height: 3px; margin: 0 auto 12px; border-radius: 99px; background: var(--red); }
+
+    .bottom-nav {
+      position: fixed; z-index: 35; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 1180px);
+      padding: 7px 10px calc(7px + var(--safe-bottom)); display: grid; grid-template-columns: repeat(3, 1fr);
+      background: rgba(255,255,255,.96); border-top: 1px solid var(--line); backdrop-filter: blur(14px);
+    }
+    .nav-button { min-height: 51px; display: grid; place-items: center; align-content: center; gap: 3px; border: 0; border-radius: 12px; color: var(--muted); background: transparent; font-size: 11px; }
+    .nav-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    .nav-button.active { color: var(--red); background: var(--red-soft); font-weight: 720; }
+
+    .back-button { min-height: 44px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; border: 0; color: var(--muted); background: transparent; }
+    .detail-title-input { width: 100%; margin-top: 5px; border: 0; border-bottom: 1px solid transparent; padding: 4px 0; color: var(--charcoal); background: transparent; font-size: clamp(23px, 6vw, 34px); font-weight: 760; letter-spacing: -.03em; }
+    .detail-title-input:focus { border-bottom-color: var(--red); outline: 0; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; margin: 8px 0 16px; color: var(--muted); font-size: 12px; }
+    .tabs { display: flex; gap: 5px; padding: 5px; overflow-x: auto; background: #e9edef; border-radius: 13px; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-button { flex: 1 0 auto; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 9px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 650; }
+    .tab-button.active { color: var(--charcoal); background: #fff; box-shadow: 0 2px 7px rgba(31,39,48,.07); }
+    .detail-content { margin-top: 14px; }
+    .summary-lead { padding: 18px; border-left: 4px solid var(--red); background: #fff; border-radius: 0 15px 15px 0; box-shadow: var(--shadow); line-height: 1.75; }
+    .minutes-grid { margin-top: 12px; }
+    .minutes-card { padding: 17px; }
+    .minutes-card ul { margin: 10px 0 0; padding-left: 20px; }
+    .minutes-card li { margin: 7px 0; line-height: 1.6; }
+    .topic { padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .topic:last-child { border: 0; padding-bottom: 0; }
+    .action-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .action-table th { text-align: left; color: var(--muted); font-weight: 650; border-bottom: 1px solid var(--line); padding: 8px 6px; }
+    .action-table td { padding: 10px 6px; vertical-align: top; border-bottom: 1px solid #edf0f2; }
+    .table-wrap { overflow-x: auto; }
+
+    .transcript-list { display: grid; gap: 10px; }
+    .transcript-row { display: grid; grid-template-columns: 80px 1fr; gap: 9px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+    .transcript-row input, .transcript-row textarea { width: 100%; border: 1px solid transparent; border-radius: 8px; background: #f6f8f9; color: var(--ink); }
+    .transcript-row input { padding: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .transcript-row .speaker { margin-top: 6px; color: var(--red-dark); font-weight: 650; }
+    .transcript-row textarea { min-height: 76px; padding: 9px; resize: vertical; line-height: 1.6; }
+    .transcript-row input:focus, .transcript-row textarea:focus { border-color: var(--red-line); background: #fff; outline: 0; }
+
+    .mind-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .mind-actions { display: flex; gap: 6px; }
+    .mind-stage { min-height: 390px; overflow: auto; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+    .mind-stage svg { display: block; transform-origin: 0 0; transition: transform .18s ease; }
+    .mind-node-root { fill: var(--red); }
+    .mind-node { fill: #fff; stroke: #cfd6db; stroke-width: 1.5; }
+    .mind-edge { fill: none; stroke: #c2cbd1; stroke-width: 1.5; }
+    .mind-text-root { fill: #fff; font-weight: 700; }
+    .mind-text { fill: var(--charcoal); }
+
+    .chat-layout { display: grid; gap: 12px; }
+    .chat-history { min-height: 280px; max-height: 520px; overflow: auto; padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: 16px; }
+    .bubble { max-width: 90%; margin-bottom: 12px; padding: 11px 13px; border-radius: 14px; line-height: 1.65; font-size: 14px; }
+    .bubble.user { margin-left: auto; color: #fff; background: var(--charcoal); border-bottom-right-radius: 4px; }
+    .bubble.assistant { background: #f1f3f5; border-bottom-left-radius: 4px; }
+    .citation { display: block; margin-top: 8px; padding-top: 7px; border-top: 1px solid #d9dee2; color: var(--muted); font-size: 11px; }
+    .chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .chat-form textarea { min-height: 52px; max-height: 120px; resize: vertical; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+    .chat-form button { min-width: 72px; }
+
+    .settings-grid { display: grid; gap: 14px; }
+    .settings-card { padding: 17px; }
+    .settings-card > p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .field-grid { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--charcoal); font-size: 12px; font-weight: 680; }
+    .field input, .field select, .field textarea {
+      width: 100%; min-height: 46px; padding: 10px 12px; color: var(--ink); background: #fff;
+      border: 1px solid var(--line); border-radius: 11px;
+    }
+    .field textarea { min-height: 88px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--red); outline: 0; box-shadow: 0 0 0 3px rgba(211,17,69,.08); }
+    .field-hint { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .inline-fields { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .lock-state { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; padding: 10px; border-radius: 11px; color: var(--warning); background: var(--warning-soft); font-size: 12px; }
+    .lock-state.unlocked { color: var(--success); background: var(--success-soft); }
+    .danger-zone { border-color: var(--red-line); }
+    .storage-meter { height: 7px; overflow: hidden; border-radius: 99px; background: #e9edef; }
+    .storage-meter i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--red); transition: width .3s; }
+
+    dialog { width: min(calc(100% - 28px), 470px); padding: 0; border: 0; border-radius: 22px; color: var(--ink); background: #fff; box-shadow: 0 30px 80px rgba(31,39,48,.24); }
+    dialog::backdrop { background: rgba(24,30,36,.52); backdrop-filter: blur(3px); }
+    .dialog-body { padding: 22px; }
+    .dialog-rule { width: 38px; height: 4px; margin-bottom: 18px; border-radius: 99px; background: var(--red); }
+    .dialog-body h2 { font-size: 23px; }
+    .dialog-body p { color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .dialog-actions { display: grid; gap: 8px; margin-top: 17px; }
+    .pin-input { letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+    .error-copy { min-height: 18px; margin-top: 7px; color: var(--red-dark); font-size: 12px; }
+
+    .toast-stack { position: fixed; z-index: 90; left: 14px; right: 14px; bottom: calc(78px + var(--safe-bottom)); display: grid; gap: 8px; pointer-events: none; }
+    .toast { max-width: 520px; margin: 0 auto; padding: 11px 13px; color: #fff; background: var(--charcoal); border-radius: 11px; box-shadow: var(--shadow); font-size: 13px; animation: toast-in .22s ease-out; }
+    .toast.error { background: #8f1839; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+    .progress-bar { height: 5px; overflow: hidden; border-radius: 99px; background: #e3e7ea; }
+    .progress-bar i { display: block; width: 0; height: 100%; background: var(--red); transition: width .25s; }
+
+    @media (min-width: 720px) {
+      .topbar { padding-inline: 24px; }
+      main { padding: 28px 24px 106px; }
+      .record-controls { grid-template-columns: 1fr 1fr; }
+      .home-grid { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; }
+      .home-grid .import-panel { position: sticky; top: 88px; }
+      .minutes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .minutes-card.wide { grid-column: 1 / -1; }
+      .inline-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+      .settings-card.wide { grid-column: 1 / -1; }
+      .toast-stack { bottom: 28px; }
+    }
+
+    @media (min-width: 1000px) {
+      .app-shell { display: grid; grid-template-columns: 190px 1fr; background: #fff; box-shadow: 0 0 0 1px rgba(223,228,232,.65); }
+      .topbar { position: fixed; z-index: 40; left: max(0px, calc(50% - 590px)); top: 0; width: 190px; height: 100vh; padding: 28px 16px; flex-direction: column; align-items: stretch; justify-content: flex-start; border-right: 1px solid var(--line); border-bottom: 0; background: #fff; backdrop-filter: none; }
+      .brand { margin-bottom: 22px; }
+      .brand small { max-width: 125px; }
+      .top-actions { margin-top: auto; flex-direction: column; align-items: stretch; }
+      .connection-pill { justify-content: center; }
+      .top-actions .icon-button { display: none; }
+      main { grid-column: 2; min-width: 0; padding: 35px 34px 58px; background: var(--canvas); }
+      .bottom-nav { position: fixed; left: max(0px, calc(50% - 590px)); bottom: auto; top: 112px; transform: none; width: 190px; padding: 8px 14px; grid-template-columns: 1fr; border: 0; background: transparent; backdrop-filter: none; }
+      .bottom-nav { z-index: 45; }
+      .nav-button { grid-template-columns: 24px 1fr; justify-items: start; align-content: center; padding: 0 13px; font-size: 13px; }
+      .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .record-panel { padding: 22px; }
+      .view-head { margin-top: 0; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .topbar, .bottom-nav, .detail-toolbar, .tabs, .button-row, .mind-toolbar, .chat-form, .toast-stack { display: none !important; }
+      .app-shell, main { display: block; width: 100%; max-width: none; padding: 0; box-shadow: none; background: #fff; }
+      .view { display: none !important; }
+      #detailView { display: block !important; }
+      .detail-content { display: block !important; }
+      .panel, .summary-lead { box-shadow: none; break-inside: avoid; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="会议同步纪要">
+        <span class="brand-rule" aria-hidden="true"></span>
+        <span><strong>会议同步纪要</strong><small>录音保存在当前设备</small></span>
+      </div>
+      <div class="top-actions">
+        <button class="connection-pill" id="connectionPill" type="button" title="检查云端连接">
+          <span class="dot"></span><span id="connectionText">云端未设置</span>
+        </button>
+        <button class="icon-button" id="quickSettings" type="button" aria-label="打开设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view active" id="homeView" aria-labelledby="homeTitle">
+        <div class="view-head">
+          <div><p class="eyebrow">本地优先</p><h1 id="homeTitle">开会时，只管说</h1><p class="subtle">录音持续保存在这台设备；结束后再通过云端转写和整理。</p></div>
+        </div>
+
+        <div class="panel record-panel">
+          <div class="record-status"><span class="record-label"><span class="pulse"></span><span id="recordState">准备录音</span></span><span class="count" id="segmentState">最长 2 小时</span></div>
+          <div class="record-time" id="recordTime">00:00:00</div>
+          <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="record-controls" id="recordControls">
+            <button class="primary-button" id="startButton" type="button">开始会议</button>
+            <button class="secondary-button hidden" id="pauseButton" type="button">暂停</button>
+            <button class="danger-button hidden" id="endButton" type="button">结束并保存</button>
+          </div>
+          <div class="notice" id="recordNotice"><span class="notice-dot"></span><span><strong>离线也能录。</strong> 录音不依赖电脑或服务器，联网后再生成文字稿与纪要。</span></div>
+        </div>
+
+        <div class="grid home-grid">
+          <section class="panel section-panel import-panel">
+            <div class="import-icon" aria-hidden="true">＋</div>
+            <div class="section-head"><h2>导入已有录音</h2><span class="count">最大 2GB</span></div>
+            <p class="subtle">可从 iPhone / iPad 的“语音备忘录”选择共享并“存储到文件”，再在这里选择该录音；也支持常见音频文件。</p>
+            <input class="hidden" id="audioImport" type="file" accept="audio/*,video/mp4,video/quicktime,.m4a,.mp3,.wav,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov">
+            <button class="primary-button" id="chooseAudio" type="button">选择音频 / 录音</button>
+            <span class="local-chip">原始文件先保存在当前浏览器</span>
+          </section>
+          <section class="panel section-panel">
+            <div class="section-head"><h2>这台设备上的会议</h2><span class="count" id="meetingCount">0 场</span></div>
+            <div class="meeting-list" id="meetingList"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="detailView" aria-labelledby="detailTitle">
+        <div class="detail-toolbar"><button class="back-button" id="backHome" type="button">← 返回会议</button></div>
+        <input class="detail-title-input" id="detailTitle" value="会议" aria-label="会议标题">
+        <div class="detail-meta" id="detailMeta"></div>
+        <div class="button-row">
+          <button class="primary-button" id="processMeeting" type="button">补做转写并生成纪要</button>
+          <button class="secondary-button" id="exportMarkdown" type="button">导出 Markdown</button>
+          <button class="secondary-button" id="printMeeting" type="button">打印 / PDF</button>
+          <button class="danger-button" id="deleteMeeting" type="button">删除会议</button>
+        </div>
+        <div class="notice hidden" id="processNotice"><span class="notice-dot"></span><span id="processText"></span></div>
+        <div class="progress-bar hidden" id="processProgress"><i></i></div>
+        <div class="tabs" role="tablist" aria-label="会议内容" id="detailTabs">
+          <button class="tab-button active" data-tab="minutes" role="tab" type="button">纪要</button>
+          <button class="tab-button" data-tab="transcript" role="tab" type="button">文字稿</button>
+          <button class="tab-button" data-tab="mind" role="tab" type="button">思维导图</button>
+          <button class="tab-button" data-tab="chat" role="tab" type="button">问会议</button>
+        </div>
+        <div class="detail-content" id="detailContent"></div>
+      </section>
+
+      <section class="view" id="settingsView" aria-labelledby="settingsTitle">
+        <div class="view-head"><div><p class="eyebrow">本地保险箱</p><h1 id="settingsTitle">连接与模型</h1><p class="subtle">Key、Workspace 和云端访问信息加密后只保存在这个浏览器。</p></div></div>
+        <div class="settings-grid">
+          <section class="panel settings-card wide">
+            <div class="section-head"><h2>保险箱</h2><button class="text-button" id="lockVault" type="button">立即锁定</button></div>
+            <div class="lock-state" id="vaultState">保险箱尚未解锁</div>
+            <div class="button-row"><button class="secondary-button" id="openVault" type="button">解锁 / 设置 PIN</button><button class="secondary-button" id="changePin" type="button">修改 PIN</button></div>
+          </section>
+
+          <section class="panel settings-card">
+            <h2>云端处理</h2>
+            <p>使用固定 Cloudflare Worker 地址，不需要启动 Mac 终端。音频只在转写期间临时存入私有空间。</p>
+            <div class="field-grid">
+              <div class="field"><label for="cloudSetup">一次性连接配置</label><textarea id="cloudSetup" autocomplete="off" spellcheck="false" placeholder='粘贴 {"workerUrl":"https://…workers.dev","appToken":"…"}'></textarea><span class="field-hint">首次部署后粘贴一次即可，以后不需要重新配对。</span></div>
+              <div class="field"><label for="workerUrl">Worker 地址</label><input id="workerUrl" type="url" placeholder="https://meeting-minutes-cloud.你的账号.workers.dev" autocomplete="off"></div>
+              <div class="field"><label for="appToken">云端访问令牌</label><input id="appToken" type="password" placeholder="部署时生成的 APP_TOKEN" autocomplete="off"><span class="field-hint">令牌只加密保存在此浏览器，用于防止公开网页被他人调用。</span></div>
+            </div>
+            <div class="button-row" style="margin-top:12px"><button class="primary-button" id="applyCloudSetup" type="button">应用连接配置</button><button class="secondary-button" id="testCloud" type="button">测试云端连接</button></div>
+          </section>
+
+          <section class="panel settings-card">
+            <h2>Qwen 语音</h2>
+            <p>短录音按 4 分钟分段转写；导入的长录音使用文件转写模型。</p>
+            <div class="field-grid">
+              <div class="field"><label for="qwenKey">百炼 API Key</label><input id="qwenKey" type="password" autocomplete="off" placeholder="sk-ws… / sk-…"><span class="field-hint">请使用百炼按量付费 Key；不要使用以 sk-sp- 开头的 Token Plan Key。</span></div>
+              <div class="field"><label for="workspaceId">Workspace ID / API Host（必填）</label><input id="workspaceId" autocomplete="off" spellcheck="false" placeholder="例如 ws-…，或粘贴完整 API Host"><span class="field-hint">推荐直接粘贴百炼 Key 页面显示的 API Host，页面会自动识别 Workspace 和区域；不要填写纯数字编号。</span></div>
+              <div class="field"><label for="qwenRegion">区域</label><select id="qwenRegion"><option value="cn-beijing">中国大陆（北京）</option><option value="ap-southeast-1">国际（新加坡）</option></select></div>
+              <div class="field"><label for="fileModel">录音文件转写模型</label><input id="fileModel" value="qwen-audio-3.0-asr-flash-filetrans"><span class="field-hint">本机录音段和导入音频都使用文件转写，避免在浏览器或 Worker 中复制大段 Base64。</span></div>
+            </div>
+            <div class="button-row" style="margin-top:12px"><button class="secondary-button" id="testSpeech" type="button">测试语音连接</button><button class="text-button" id="deleteSpeechKey" type="button">删除语音 Key</button></div>
+          </section>
+
+          <section class="panel settings-card wide">
+            <h2>文字模型</h2>
+            <div class="inline-fields">
+              <div class="field"><label for="textProvider">提供商</label><select id="textProvider"><option value="qwen">Qwen</option><option value="deepseek">DeepSeek</option><option value="custom">自定义 OpenAI 兼容</option></select></div>
+              <div class="field"><label for="textModel">Model ID</label><input id="textModel" value="qwen3.7-flash"></div>
+            </div>
+            <div class="inline-fields" style="margin-top:12px">
+              <div class="field"><label for="textKey">文字模型 API Key</label><input id="textKey" type="password" autocomplete="off" placeholder="Qwen 可留空并复用百炼 Key"></div>
+              <div class="field custom-only hidden"><label for="customName">显示名称</label><input id="customName" placeholder="公司模型"></div>
+            </div>
+            <div class="inline-fields custom-only hidden" style="margin-top:12px">
+              <div class="field"><label for="textBaseUrl">HTTPS Base URL</label><input id="textBaseUrl" type="url" placeholder="https://api.example.com/v1"></div>
+              <div class="field"><label for="jsonSchema">结构化输出</label><select id="jsonSchema"><option value="yes">支持 JSON Schema</option><option value="no">仅支持 JSON Object</option></select></div>
+            </div>
+            <div class="button-row" style="margin-top:14px"><button class="primary-button" id="saveSettings" type="button">加密保存</button><button class="secondary-button" id="testText" type="button">测试文字模型</button><button class="text-button" id="deleteTextKey" type="button">删除文字 Key</button></div>
+          </section>
+
+          <section class="panel settings-card">
+            <h2>本地空间</h2>
+            <p id="storageText">正在估算浏览器用量…</p>
+            <div class="storage-meter" aria-hidden="true"><i id="storageBar"></i></div>
+            <p class="field-hint" style="margin-top:10px">Safari 清理网站数据会删除会议。重要会议请及时导出。</p>
+          </section>
+
+          <section class="panel settings-card danger-zone">
+            <h2>重置保险箱</h2>
+            <p>只删除加密保存的 Key、Workspace 和云端连接，不删除会议。</p>
+            <button class="danger-button" id="resetVault" type="button">重置保险箱</button>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button class="nav-button active" data-view="home" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10M9 20v-6h6v6"></path></svg><span>会议</span></button>
+      <button class="nav-button" data-view="detail" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg><span>纪要</span></button>
+      <button class="nav-button" data-view="settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.6h-4L10.4 6A8 8 0 0 0 8.9 7L6.5 6l-2 3.4 2 1.5a7 7 0 0 0 0 2.1l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.5.9l.3 2.7h4l.3-2.7a8 8 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"></path></svg><span>设置</span></button>
+    </nav>
+  </div>
+
+  <dialog id="vaultDialog">
+    <form class="dialog-body" id="vaultForm" method="dialog">
+      <div class="dialog-rule"></div>
+      <h2 id="vaultDialogTitle">设置本机 PIN</h2>
+      <p id="vaultDialogCopy">PIN 用来在当前浏览器解锁模型 Key 和云端连接。PIN 不会被保存，忘记后只能重置保险箱。</p>
+      <div class="field"><label for="pinInput">PIN（至少 6 位）</label><input class="pin-input" id="pinInput" type="password" inputmode="numeric" autocomplete="off" minlength="6"></div>
+      <div class="field hidden" id="pinConfirmField" style="margin-top:10px"><label for="pinConfirm">再次输入</label><input class="pin-input" id="pinConfirm" type="password" inputmode="numeric" autocomplete="off" minlength="6"></div>
+      <div class="error-copy" id="vaultError" role="alert"></div>
+      <div class="dialog-actions"><button class="primary-button" id="vaultSubmit" value="default">继续</button><button class="secondary-button" id="vaultCancel" value="cancel">稍后处理</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const DB_NAME = "meeting-sync-minutes";
+    const DB_VERSION = 3;
+    const FOUR_MINUTES = 240000;
+    const TWO_HOURS = 7200000;
+    const MAX_IMPORTED_AUDIO = 2 * 1024 * 1024 * 1024;
+    const UPLOAD_PART_SIZE = 10 * 1024 * 1024;
+    const IDLE_LOCK = 15 * 60 * 1000;
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+    const defaultConfig = () => ({
+      cloud: { workerUrl: "https://meeting-minutes-cloud.meeting-minutes-cloud-worker.workers.dev", appToken: "" },
+      speech: {
+        type: "qwen", apiKey: "", workspaceId: "", region: "cn-beijing",
+        finalModel: "qwen-audio-3.0-asr-flash", fileModel: "qwen-audio-3.0-asr-flash-filetrans"
+      },
+      text: {
+        type: "qwen", apiKey: "", baseUrl: "", model: "qwen3.7-flash",
+        name: "Qwen", supportsJsonSchema: false
+      }
+    });
+
+    const state = {
+      db: null,
+      config: null,
+      vaultKey: null,
+      vaultRecord: null,
+      meetings: [],
+      activeMeeting: null,
+      activeTab: "minutes",
+      recording: false,
+      paused: false,
+      stream: null,
+      recorder: null,
+      wakeLock: null,
+      startedAtMono: 0,
+      pausedAtMono: 0,
+      pausedTotal: 0,
+      ticker: null,
+      elapsed: 0,
+      segmentIndex: 0,
+      segmentPart: 0,
+      segmentStartedMono: 0,
+      segmentTimer: null,
+      segmentRemaining: FOUR_MINUTES,
+      segmentStartedElapsed: 0,
+      partWriteChain: Promise.resolve(),
+      recorderStopPromise: null,
+      stopReason: "",
+      rotateAfterStop: false,
+      mindZoom: 1,
+      idleTimer: null,
+      lastInteraction: Date.now(),
+      processing: false
+    };
+
+    const el = {
+      homeView: $("#homeView"), detailView: $("#detailView"), settingsView: $("#settingsView"),
+      connectionPill: $("#connectionPill"), connectionText: $("#connectionText"),
+      start: $("#startButton"), pause: $("#pauseButton"), end: $("#endButton"),
+      recordTime: $("#recordTime"), recordState: $("#recordState"), segmentState: $("#segmentState"),
+      recordNotice: $("#recordNotice"), audioImport: $("#audioImport"),
+      meetingList: $("#meetingList"), meetingCount: $("#meetingCount"),
+      detailTitle: $("#detailTitle"), detailMeta: $("#detailMeta"), detailContent: $("#detailContent"),
+      processNotice: $("#processNotice"), processText: $("#processText"), processProgress: $("#processProgress"),
+      vaultDialog: $("#vaultDialog"), vaultTitle: $("#vaultDialogTitle"), vaultCopy: $("#vaultDialogCopy"),
+      pin: $("#pinInput"), pinConfirm: $("#pinConfirm"), pinConfirmField: $("#pinConfirmField"),
+      vaultError: $("#vaultError"), vaultSubmit: $("#vaultSubmit"), vaultCancel: $("#vaultCancel"),
+      vaultState: $("#vaultState"), storageText: $("#storageText"), storageBar: $("#storageBar")
+    };
+
+    function escapeHTML(value = "") {
+      return String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
+    }
+
+    function formatClock(seconds) {
+      const total = Math.max(0, Math.floor(seconds));
+      const h = String(Math.floor(total / 3600)).padStart(2, "0");
+      const m = String(Math.floor(total % 3600 / 60)).padStart(2, "0");
+      const s = String(total % 60).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
+
+    function formatDate(value) {
+      if (!value) return "";
+      return new Intl.DateTimeFormat("zh-CN", {month:"long", day:"numeric", hour:"2-digit", minute:"2-digit"}).format(new Date(value));
+    }
+
+    function randomId(prefix = "id") {
+      return `${prefix}-${Date.now().toString(36)}-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
+    }
+
+    function toBase64(bytes) {
+      let text = "";
+      const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      for (let index = 0; index < view.length; index += 0x8000) text += String.fromCharCode(...view.subarray(index, index + 0x8000));
+      return btoa(text);
+    }
+
+    function fromBase64(value) {
+      const text = atob(value);
+      const bytes = new Uint8Array(text.length);
+      for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
+      return bytes;
+    }
+
+    function toast(message, type = "normal") {
+      const item = document.createElement("div");
+      item.className = `toast ${type === "error" ? "error" : ""}`;
+      item.textContent = message;
+      $("#toastStack").append(item);
+      setTimeout(() => item.remove(), 4200);
+    }
+
+    function showNotice(message, progress = null) {
+      el.processNotice.classList.remove("hidden");
+      el.processText.textContent = message;
+      if (progress === null) {
+        el.processProgress.classList.add("hidden");
+      } else {
+        el.processProgress.classList.remove("hidden");
+        $("i", el.processProgress).style.width = `${Math.max(0, Math.min(100, progress))}%`;
+      }
+    }
+
+    function clearNotice() {
+      el.processNotice.classList.add("hidden");
+      el.processProgress.classList.add("hidden");
+    }
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("vault")) db.createObjectStore("vault", {keyPath:"id"});
+          if (!db.objectStoreNames.contains("meetings")) {
+            const meetings = db.createObjectStore("meetings", {keyPath:"id"});
+            meetings.createIndex("startedAt", "startedAt");
+          }
+          let audio;
+          if (!db.objectStoreNames.contains("audioParts")) {
+            audio = db.createObjectStore("audioParts", {keyPath:"id"});
+            audio.createIndex("meetingId", "meetingId");
+          } else {
+            audio = request.transaction.objectStore("audioParts");
+          }
+          if (!audio.indexNames.contains("meetingSegment")) audio.createIndex("meetingSegment", ["meetingId", "segmentIndex"]);
+          if (!db.objectStoreNames.contains("imports")) {
+            const imports = db.createObjectStore("imports", {keyPath:"id"});
+            imports.createIndex("meetingId", "meetingId", {unique:true});
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function dbRequest(store, mode, action) {
+      return new Promise((resolve, reject) => {
+        const transaction = state.db.transaction(store, mode);
+        const objectStore = transaction.objectStore(store);
+        let request;
+        try { request = action(objectStore); } catch (error) { reject(error); return; }
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    const dbGet = (store, key) => dbRequest(store, "readonly", os => os.get(key));
+    const dbPut = (store, value) => dbRequest(store, "readwrite", os => os.put(value));
+    const dbDelete = (store, key) => dbRequest(store, "readwrite", os => os.delete(key));
+    const dbAll = store => dbRequest(store, "readonly", os => os.getAll());
+
+    function deleteAudioParts(meetingId) {
+      return new Promise((resolve, reject) => {
+        const tx = state.db.transaction("audioParts", "readwrite");
+        const index = tx.objectStore("audioParts").index("meetingId");
+        const cursor = index.openCursor(IDBKeyRange.only(meetingId));
+        cursor.onsuccess = () => {
+          const current = cursor.result;
+          if (current) { current.delete(); current.continue(); }
+        };
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function getSegmentAudioParts(meetingId, segmentIndex) {
+      return new Promise((resolve, reject) => {
+        const tx = state.db.transaction("audioParts", "readonly");
+        const request = tx.objectStore("audioParts").index("meetingSegment").getAll(IDBKeyRange.only([meetingId, segmentIndex]));
+        request.onsuccess = () => resolve(request.result.sort((a,b) => a.partIndex - b.partIndex));
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function getImportForMeeting(meetingId) {
+      return new Promise((resolve, reject) => {
+        const tx = state.db.transaction("imports", "readonly");
+        const request = tx.objectStore("imports").index("meetingId").get(meetingId);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function deriveVaultKey(pin, salt, iterations = 310000) {
+      const material = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]);
+      return crypto.subtle.deriveKey(
+        {name:"PBKDF2", salt, iterations, hash:"SHA-256"}, material,
+        {name:"AES-GCM", length:256}, false, ["encrypt", "decrypt"]
+      );
+    }
+
+    async function encryptVault(config, pin, existingKey = null) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = existingKey || await deriveVaultKey(pin, salt);
+      const cipher = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, encoder.encode(JSON.stringify(config)));
+      const record = {id:"primary", version:1, iterations:310000, salt:toBase64(salt), iv:toBase64(iv), cipher:toBase64(cipher), updatedAt:new Date().toISOString()};
+      await dbPut("vault", record);
+      state.vaultRecord = record;
+      state.vaultKey = key;
+      return record;
+    }
+
+    async function saveVaultWithCurrentKey() {
+      if (!state.vaultKey || !state.vaultRecord || !state.config) throw new Error("请先解锁保险箱");
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const cipher = await crypto.subtle.encrypt({name:"AES-GCM", iv}, state.vaultKey, encoder.encode(JSON.stringify(state.config)));
+      state.vaultRecord = {...state.vaultRecord, iv:toBase64(iv), cipher:toBase64(cipher), updatedAt:new Date().toISOString()};
+      await dbPut("vault", state.vaultRecord);
+      touchActivity();
+    }
+
+    async function unlockVault(pin) {
+      const record = state.vaultRecord || await dbGet("vault", "primary");
+      if (!record) throw new Error("保险箱尚未建立");
+      const key = await deriveVaultKey(pin, fromBase64(record.salt), record.iterations || 310000);
+      let plain;
+      try { plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:fromBase64(record.iv)}, key, fromBase64(record.cipher)); }
+      catch { throw new Error("PIN 不正确"); }
+      state.vaultRecord = record;
+      state.vaultKey = key;
+      state.config = {...defaultConfig(), ...JSON.parse(decoder.decode(plain))};
+      state.config.cloud = {...defaultConfig().cloud, ...(state.config.cloud || {})};
+      state.config.speech = {...defaultConfig().speech, ...(state.config.speech || {})};
+      state.config.text = {...defaultConfig().text, ...(state.config.text || {})};
+      fillSettings();
+      updateVaultState();
+      touchActivity();
+      await checkCloud(false);
+    }
+
+    function lockVault(showMessage = true) {
+      if (state.recording) return;
+      state.vaultKey = null;
+      state.config = null;
+      fillSettings();
+      updateVaultState();
+      setConnection("locked", "保险箱已锁定");
+      if (showMessage) toast("保险箱已锁定");
+    }
+
+    function touchActivity() {
+      state.lastInteraction = Date.now();
+      clearTimeout(state.idleTimer);
+      state.idleTimer = setTimeout(() => {
+        if (!state.recording && state.vaultKey && Date.now() - state.lastInteraction >= IDLE_LOCK) lockVault();
+      }, IDLE_LOCK + 1000);
+    }
+
+    function updateVaultState() {
+      const unlocked = Boolean(state.vaultKey && state.config);
+      el.vaultState.className = `lock-state ${unlocked ? "unlocked" : ""}`;
+      el.vaultState.textContent = unlocked ? "保险箱已解锁；闲置 15 分钟后自动锁定" : (state.vaultRecord ? "保险箱已锁定" : "尚未建立保险箱");
+      $("#lockVault").disabled = !unlocked || state.recording;
+      $("#changePin").disabled = !unlocked;
+    }
+
+    function openVaultDialog(mode = "auto") {
+      const setup = mode === "setup" || (!state.vaultRecord && mode !== "unlock");
+      const change = mode === "change";
+      el.vaultDialog.dataset.mode = change ? "change" : (setup ? "setup" : "unlock");
+      el.vaultTitle.textContent = change ? "修改保险箱 PIN" : (setup ? "设置本机 PIN" : "解锁保险箱");
+      el.vaultCopy.textContent = change
+        ? "新 PIN 会重新加密现有的模型与云端配置。"
+        : (setup ? "PIN 只用于当前浏览器，至少 6 位；忘记后只能重置保险箱。" : "输入 PIN 以读取加密保存的模型和云端配置。");
+      el.pinConfirmField.classList.toggle("hidden", !setup && !change);
+      el.vaultCancel.textContent = state.vaultRecord || change ? "取消" : "稍后处理";
+      el.vaultError.textContent = "";
+      el.pin.value = "";
+      el.pinConfirm.value = "";
+      if (!el.vaultDialog.open) el.vaultDialog.showModal();
+      setTimeout(() => el.pin.focus(), 50);
+    }
+
+    async function handleVaultSubmit(event) {
+      event.preventDefault();
+      const mode = el.vaultDialog.dataset.mode;
+      const pin = el.pin.value;
+      el.vaultError.textContent = "";
+      if (pin.length < 6) { el.vaultError.textContent = "PIN 至少需要 6 位"; return; }
+      if ((mode === "setup" || mode === "change") && pin !== el.pinConfirm.value) { el.vaultError.textContent = "两次输入不一致"; return; }
+      el.vaultSubmit.disabled = true;
+      try {
+        if (mode === "unlock") {
+          await unlockVault(pin);
+        } else {
+          const config = state.config || defaultConfig();
+          await encryptVault(config, pin);
+          state.config = config;
+          fillSettings();
+          updateVaultState();
+        }
+        el.vaultDialog.close();
+        toast(mode === "change" ? "PIN 已更新" : "保险箱已解锁");
+      } catch (error) {
+        el.vaultError.textContent = error.message || "无法打开保险箱";
+      } finally {
+        el.vaultSubmit.disabled = false;
+        el.pin.value = "";
+        el.pinConfirm.value = "";
+      }
+    }
+
+    function fillSettings() {
+      const config = state.config || defaultConfig();
+      $("#workerUrl").value = state.config ? config.cloud.workerUrl : "";
+      $("#appToken").value = state.config ? config.cloud.appToken : "";
+      $("#qwenKey").value = state.config ? config.speech.apiKey : "";
+      $("#workspaceId").value = state.config ? config.speech.workspaceId : "";
+      $("#qwenRegion").value = config.speech.region;
+      $("#fileModel").value = config.speech.fileModel;
+      $("#textProvider").value = config.text.type;
+      $("#textModel").value = config.text.model;
+      $("#textKey").value = state.config ? config.text.apiKey : "";
+      $("#textBaseUrl").value = config.text.baseUrl || "";
+      $("#customName").value = config.text.name || "";
+      $("#jsonSchema").value = config.text.supportsJsonSchema ? "yes" : "no";
+      updateProviderFields(false);
+    }
+
+    function normalizeWorkspaceEntry(value, selectedRegion) {
+      const raw = String(value || "").trim();
+      const workspacePattern = /^(?=.{3,80}$)(?=.*-)[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9]$/;
+      if (!/^https?:\/\//i.test(raw)) {
+        if (!workspacePattern.test(raw)) {
+          throw new Error("Workspace ID 不是纯数字编号；请填写 ws-… / llm-…，或直接粘贴完整 API Host");
+        }
+        return {workspaceId:raw, region:selectedRegion};
+      }
+      let parsed;
+      try { parsed = new URL(raw); }
+      catch (_error) { throw new Error("API Host 格式不正确，请从百炼控制台重新复制"); }
+      const match = parsed.hostname.match(/^([A-Za-z][A-Za-z0-9-]*-[A-Za-z0-9][A-Za-z0-9-]*)\.(cn-beijing|ap-southeast-1)\.maas\.aliyuncs\.com$/i);
+      if (parsed.protocol !== "https:" || parsed.port || parsed.username || parsed.password || !match) {
+        throw new Error("API Host 不是受支持的百炼北京或新加坡地址");
+      }
+      return {workspaceId:match[1], region:match[2].toLowerCase()};
+    }
+
+    function validateModelKey(value, label = "API Key") {
+      const key = String(value || "").trim();
+      if (key.includes("*") || key.includes("…")) {
+        throw new Error(`${label} 是控制台列表中的掩码值；请重置或新建 Key，并在创建弹窗中立即复制完整值`);
+      }
+      if (/\s/.test(key)) throw new Error(`${label} 中含有空格或换行，请重新复制完整 Key`);
+      return key;
+    }
+
+    function readCloudSettings() {
+      if (!state.config) throw new Error("请先解锁保险箱");
+      const workerUrl = $("#workerUrl").value.trim().replace(/\/$/, "");
+      const appToken = $("#appToken").value.trim();
+      let parsed;
+      try { parsed = new URL(workerUrl); } catch { throw new Error("Worker 地址格式不正确"); }
+      if (parsed.protocol !== "https:" || parsed.port || parsed.search || parsed.hash) throw new Error("Worker 必须使用标准 HTTPS 地址");
+      if (appToken.length < 24 || /\s/.test(appToken)) throw new Error("云端访问令牌不完整，请重新复制");
+      state.config.cloud = {workerUrl, appToken};
+      return state.config.cloud;
+    }
+
+    async function applyCloudSetup() {
+      if (!state.config) { openVaultDialog(); return; }
+      try {
+        const setup = JSON.parse($("#cloudSetup").value.trim());
+        if (!setup || typeof setup !== "object") throw new Error("连接配置格式不正确");
+        $("#workerUrl").value = String(setup.workerUrl || "");
+        $("#appToken").value = String(setup.appToken || "");
+        readCloudSettings();
+        await saveVaultWithCurrentKey();
+        $("#cloudSetup").value = "";
+        toast("云端连接已加密保存");
+        await checkCloud(true);
+      } catch (error) { toast(error.message || "无法读取连接配置", "error"); }
+    }
+
+    function readSettings() {
+      if (!state.config) throw new Error("请先解锁保险箱");
+      const type = $("#textProvider").value;
+      const speechKey = validateModelKey($("#qwenKey").value, "百炼 API Key");
+      const key = validateModelKey($("#textKey").value, "文字模型 API Key");
+      const workspace = normalizeWorkspaceEntry($("#workspaceId").value, $("#qwenRegion").value);
+      $("#workspaceId").value = workspace.workspaceId;
+      $("#qwenRegion").value = workspace.region;
+      state.config = {
+        cloud: {
+          workerUrl:$("#workerUrl").value.trim().replace(/\/$/, ""),
+          appToken:$("#appToken").value.trim()
+        },
+        speech: {
+          type:"qwen", apiKey:speechKey, workspaceId:workspace.workspaceId,
+          region:workspace.region, finalModel:state.config.speech.finalModel || "qwen-audio-3.0-asr-flash", fileModel:$("#fileModel").value.trim()
+        },
+        text: {
+          type, apiKey:key, baseUrl:$("#textBaseUrl").value.trim().replace(/\/$/, ""),
+          model:$("#textModel").value.trim(), name:$("#customName").value.trim() || type,
+          supportsJsonSchema:$("#jsonSchema").value === "yes"
+        }
+      };
+      return state.config;
+    }
+
+    async function saveSettings() {
+      try {
+        readSettings();
+        await saveVaultWithCurrentKey();
+        toast("配置已加密保存");
+        await checkCloud(false);
+      } catch (error) { toast(error.message, "error"); }
+    }
+
+    function updateProviderFields(resetModel = true) {
+      const type = $("#textProvider").value;
+      $$(".custom-only").forEach(node => node.classList.toggle("hidden", type !== "custom"));
+      if (resetModel) {
+        if (type === "qwen") $("#textModel").value = "qwen3.7-flash";
+        if (type === "deepseek") $("#textModel").value = "deepseek-v4-flash";
+        if (type === "custom") $("#textModel").value = "";
+      }
+    }
+
+    function providerPayload() {
+      if (!state.config) throw new Error("保险箱已锁定");
+      const text = state.config.text;
+      let baseUrl = text.baseUrl;
+      if (text.type === "qwen" && state.config.speech.workspaceId) {
+        baseUrl = `https://${state.config.speech.workspaceId}.${state.config.speech.region}.maas.aliyuncs.com/compatible-mode/v1`;
+      }
+      return {
+        type:text.type,
+        apiKey:text.apiKey || (text.type === "qwen" ? state.config.speech.apiKey : ""),
+        baseUrl,
+        model:text.model,
+        supportsJsonSchema:text.supportsJsonSchema
+      };
+    }
+
+    function cloudHeaders(jsonBody = true) {
+      if (!state.config?.cloud?.appToken) throw new Error("请先填写云端访问令牌");
+      return {"Authorization":`Bearer ${state.config.cloud.appToken}`, ...(jsonBody ? {"Content-Type":"application/json"} : {})};
+    }
+
+    function cloudEndpoint(path) {
+      const base = state.config?.cloud?.workerUrl?.replace(/\/$/, "");
+      if (!base) throw new Error("请先填写 Cloudflare Worker 地址");
+      let parsed;
+      try { parsed = new URL(base); } catch { throw new Error("Worker 地址格式不正确"); }
+      if (parsed.protocol !== "https:" || parsed.port || parsed.search || parsed.hash) throw new Error("Worker 必须使用标准 HTTPS 地址");
+      return `${base}${path}`;
+    }
+
+    async function cloudFetch(path, body, timeout = 130000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(cloudEndpoint(path), {method:"POST", headers:cloudHeaders(), body:JSON.stringify(body), signal:controller.signal});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          const failure = new Error(data?.message || `云端返回 ${response.status}`);
+          failure.code = data?.code || `HTTP_${response.status}`;
+          throw failure;
+        }
+        return data;
+      } catch (error) {
+        if (error.name === "AbortError") throw new Error("云端请求超时，本地录音不受影响");
+        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) {
+          throw new Error("无法连接云端服务，请检查网络和 Worker 地址");
+        }
+        throw error;
+      } finally { clearTimeout(timer); }
+    }
+
+    async function cloudUploadPart(path, blob, timeout = 180000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(cloudEndpoint(path), {method:"PUT", headers:cloudHeaders(false), body:blob, signal:controller.signal});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          const failure = new Error(data?.message || `上传返回 ${response.status}`);
+          failure.code = data?.code || `HTTP_${response.status}`;
+          throw failure;
+        }
+        return data;
+      } catch (error) {
+        if (error.name === "AbortError") throw new Error("这一段上传超时，可稍后继续");
+        if (error instanceof TypeError || /load failed|failed to fetch|networkerror/i.test(error.message || "")) throw new Error("上传中断，进度已保留，可稍后继续");
+        throw error;
+      } finally { clearTimeout(timer); }
+    }
+
+    function setConnection(kind, text) {
+      el.connectionPill.className = `connection-pill ${kind === "online" ? "online" : kind === "busy" ? "busy" : ""}`;
+      el.connectionText.textContent = text;
+    }
+
+    async function checkCloud(report = true) {
+      if (!state.config?.cloud?.workerUrl || !state.config?.cloud?.appToken) { setConnection("offline", "云端未设置"); return false; }
+      setConnection("busy", "正在检查云端");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(cloudEndpoint("/healthz"), {signal:controller.signal, cache:"no-store", headers:cloudHeaders(false)});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.message || "云端服务不可用");
+        setConnection("online", "云端可用");
+        if (report) toast("云端连接正常，不需要启动 Mac 终端");
+        return true;
+      } catch (error) {
+        setConnection("offline", "云端不可用");
+        if (report) toast(error.name === "AbortError" ? "云端连接超时" : (error.message || "云端连接失败"), "error");
+        return false;
+      } finally { clearTimeout(timer); }
+    }
+
+    async function testProvider(kind) {
+      try {
+        readSettings();
+        await saveVaultWithCurrentKey();
+        if (!await checkCloud(false)) throw new Error("云端服务尚未连接，请检查 Worker 地址和访问令牌");
+        if (kind === "speech" && state.config.speech.apiKey.startsWith("sk-sp-")) {
+          throw new Error("语音模型不能使用 Token Plan Key；请创建百炼按量付费 API Key");
+        }
+        if (kind === "speech" && !/^(?=.{3,80}$)(?=.*-)[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9]$/.test(state.config.speech.workspaceId)) {
+          throw new Error("请填写百炼 ws-… / llm-… Workspace ID，不能填写纯数字编号");
+        }
+        const body = kind === "speech"
+          ? {kind:"speech", provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region, model:state.config.speech.fileModel}}
+          : {kind:"text", provider:providerPayload()};
+        setConnection("busy", "正在测试");
+        const result = await cloudFetch("/v1/providers/test", body, 30000);
+        toast(result.message || "模型连接正常");
+        setConnection("online", "云端可用");
+      } catch (error) { toast(error.message, "error"); await checkCloud(false); }
+    }
+
+    async function loadMeetings() {
+      state.meetings = (await dbAll("meetings")).sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt));
+      renderMeetingList();
+    }
+
+    function renderMeetingList() {
+      el.meetingCount.textContent = `${state.meetings.length} 场`;
+      if (!state.meetings.length) {
+        el.meetingList.innerHTML = `<div class="empty-state"><div class="empty-line"></div><strong>还没有本地会议</strong><p class="subtle">开始第一场后，录音与纪要会保存在这里。</p></div>`;
+        return;
+      }
+      el.meetingList.innerHTML = state.meetings.map(meeting => {
+        const ready = Boolean(meeting.analysis);
+        const transcriptCount = meeting.transcript?.length || 0;
+        const stateName = ready ? "纪要完成" : (transcriptCount ? "待整理" : "待转写");
+        return `<button class="meeting-card" data-meeting-id="${escapeHTML(meeting.id)}" type="button">
+          <span class="meeting-card-top"><strong>${escapeHTML(meeting.title || "未命名会议")}</strong><span class="state-badge ${ready ? "ready" : "pending"}">${stateName}</span></span>
+          <p>${escapeHTML(formatDate(meeting.startedAt))} · ${formatClock(meeting.elapsedSeconds || 0)} · ${meeting.source === "import" ? "导入录音" : `${meeting.audioSegments?.length || 0} 个录音段`}</p>
+        </button>`;
+      }).join("");
+    }
+
+    function showView(name) {
+      const target = name === "detail" ? "detail" : name === "settings" ? "settings" : "home";
+      el.homeView.classList.toggle("active", target === "home");
+      el.detailView.classList.toggle("active", target === "detail");
+      el.settingsView.classList.toggle("active", target === "settings");
+      $$(".nav-button").forEach(button => button.classList.toggle("active", button.dataset.view === target));
+      if (target === "settings") { updateStorage(); fillSettings(); }
+      if (target === "detail" && !state.activeMeeting) {
+        if (state.meetings[0]) openMeeting(state.meetings[0].id);
+        else { toast("还没有可查看的会议"); showView("home"); }
+      }
+      window.scrollTo({top:0, behavior:"smooth"});
+    }
+
+    async function openMeeting(id) {
+      const meeting = state.meetings.find(item => item.id === id) || await dbGet("meetings", id);
+      if (!meeting) return;
+      state.activeMeeting = meeting;
+      el.detailTitle.value = meeting.title || "未命名会议";
+      state.activeTab = "minutes";
+      $$("#detailTabs .tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === "minutes"));
+      renderDetail();
+      showView("detail");
+    }
+
+    function renderDetailMeta() {
+      const meeting = state.activeMeeting;
+      if (!meeting) return;
+      const pending = (meeting.audioSegments || []).filter(segment => !segment.corrected).length;
+      el.detailMeta.innerHTML = `<span>${escapeHTML(formatDate(meeting.startedAt))}</span><span>时长 ${formatClock(meeting.elapsedSeconds || 0)}</span><span>${meeting.transcript?.length || 0} 段文字</span><span>${pending ? (meeting.source === "import" ? "录音待转写" : `${pending} 个录音段待转写`) : "音频已处理"}</span>`;
+      $("#processMeeting").textContent = meeting.analysis ? "重新生成纪要" : "转写并生成纪要";
+    }
+
+    function renderDetail() {
+      if (!state.activeMeeting) return;
+      renderDetailMeta();
+      if (state.activeTab === "minutes") renderMinutes();
+      if (state.activeTab === "transcript") renderTranscript();
+      if (state.activeTab === "mind") renderMindMap();
+      if (state.activeTab === "chat") renderChat();
+    }
+
+    function emptyDetail(title, copy) {
+      return `<div class="panel section-panel"><div class="empty-state"><div class="empty-line"></div><strong>${escapeHTML(title)}</strong><p class="subtle">${escapeHTML(copy)}</p></div></div>`;
+    }
+
+    function listHTML(items, empty = "暂无") {
+      return items?.length ? `<ul>${items.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>` : `<p class="subtle">${empty}</p>`;
+    }
+
+    function renderMinutes() {
+      const analysis = state.activeMeeting.analysis;
+      if (!analysis) { el.detailContent.innerHTML = emptyDetail("纪要尚未生成", "先完成转写，联网并连接云端后即可生成结构化纪要。"); return; }
+      const topics = analysis.topics?.length ? analysis.topics.map(topic => `<div class="topic"><h3>${escapeHTML(topic.title)}</h3>${listHTML(topic.details)}</div>`).join("") : `<p class="subtle">暂无议题</p>`;
+      const actions = analysis.actionItems?.length ? `<div class="table-wrap"><table class="action-table"><thead><tr><th>行动</th><th>负责人</th><th>日期</th><th>状态</th></tr></thead><tbody>${analysis.actionItems.map(item => `<tr><td>${escapeHTML(item.task)}</td><td>${escapeHTML(item.owner)}</td><td>${escapeHTML(item.due)}</td><td>${escapeHTML(item.status)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="subtle">暂无行动项</p>`;
+      el.detailContent.innerHTML = `<div class="summary-lead">${escapeHTML(analysis.summary)}</div>
+        <div class="grid minutes-grid">
+          <section class="panel minutes-card"><h2>核心议题</h2>${topics}</section>
+          <section class="panel minutes-card"><h2>结论与决定</h2>${listHTML(analysis.decisions)}</section>
+          <section class="panel minutes-card wide"><h2>行动项</h2>${actions}</section>
+          <section class="panel minutes-card"><h2>风险</h2>${listHTML(analysis.risks)}</section>
+          <section class="panel minutes-card"><h2>待确认</h2>${listHTML(analysis.openQuestions)}</section>
+        </div>`;
+    }
+
+    function renderTranscript() {
+      const transcript = state.activeMeeting.transcript || [];
+      if (!transcript.length) { el.detailContent.innerHTML = emptyDetail("文字稿为空", "音频仍在本地保存；联网后可以补做转写。"); return; }
+      el.detailContent.innerHTML = `<div class="transcript-list">${transcript.map((segment, index) => `<article class="transcript-row" data-transcript-index="${index}">
+        <div><input class="timestamp" value="${escapeHTML(segment.timestamp || formatClock(segment.startSeconds || 0))}" aria-label="时间戳"><input class="speaker" value="${escapeHTML(segment.speaker || "发言人")}" aria-label="发言人"></div>
+        <textarea aria-label="转写内容">${escapeHTML(segment.text || "")}</textarea>
+      </article>`).join("")}</div>`;
+    }
+
+    function layoutMindMap(root) {
+      const nodes = [], edges = [];
+      let leaf = 0;
+      function walk(node, depth, parent = null) {
+        const children = Array.isArray(node.children) ? node.children : [];
+        const item = {label:node.label || "会议", depth, x:30 + depth * 220, y:0, root:depth === 0};
+        nodes.push(item);
+        if (children.length) {
+          const childItems = children.map(child => walk(child, depth + 1, item));
+          item.y = childItems.reduce((sum, child) => sum + child.y, 0) / childItems.length;
+        } else { item.y = 35 + leaf++ * 72; }
+        if (parent) edges.push({from:parent, to:item});
+        return item;
+      }
+      walk(root, 0);
+      const width = Math.max(720, ...nodes.map(node => node.x + 200));
+      const height = Math.max(390, ...nodes.map(node => node.y + 45));
+      return {nodes, edges, width, height};
+    }
+
+    function mindSvg(root) {
+      const graph = layoutMindMap(root);
+      const edges = graph.edges.map(edge => {
+        const x1 = edge.from.x + 176, y1 = edge.from.y, x2 = edge.to.x, y2 = edge.to.y;
+        return `<path class="mind-edge" d="M${x1} ${y1} C${x1+55} ${y1},${x2-55} ${y2},${x2} ${y2}"></path>`;
+      }).join("");
+      const nodes = graph.nodes.map(node => {
+        const label = node.label.length > 20 ? `${node.label.slice(0,20)}…` : node.label;
+        return `<g><rect class="${node.root ? "mind-node-root" : "mind-node"}" x="${node.x}" y="${node.y-22}" width="176" height="44" rx="11"></rect><text class="${node.root ? "mind-text-root" : "mind-text"}" x="${node.x+88}" y="${node.y+5}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, sans-serif" font-size="13">${escapeHTML(label)}</text></g>`;
+      }).join("");
+      return `<svg id="mindSvg" xmlns="http://www.w3.org/2000/svg" width="${graph.width}" height="${graph.height}" viewBox="0 0 ${graph.width} ${graph.height}"><rect width="100%" height="100%" fill="#fff"></rect>${edges}${nodes}</svg>`;
+    }
+
+    function renderMindMap() {
+      const root = state.activeMeeting.analysis?.mindMap;
+      if (!root) { el.detailContent.innerHTML = emptyDetail("思维导图尚未生成", "生成纪要后会出现可缩放、可导出的思维导图。"); return; }
+      state.mindZoom = 1;
+      el.detailContent.innerHTML = `<div class="mind-toolbar"><span class="subtle">滚动查看完整内容</span><div class="mind-actions"><button class="icon-button" data-mind="out" type="button" aria-label="缩小">−</button><button class="icon-button" data-mind="in" type="button" aria-label="放大">＋</button><button class="secondary-button" data-mind="png" type="button">导出 PNG</button></div></div><div class="mind-stage">${mindSvg(root)}</div>`;
+    }
+
+    function renderChat() {
+      const chat = state.activeMeeting.chat || [];
+      const history = chat.length ? chat.map(item => `<div class="bubble ${item.role === "user" ? "user" : "assistant"}">${escapeHTML(item.text)}${item.citations?.map(c => `<span class="citation">${escapeHTML(c.timestamp)} · ${escapeHTML(c.quote)}</span>`).join("") || ""}</div>`).join("") : `<div class="empty-state"><div class="empty-line"></div><strong>问这场会议</strong><p class="subtle">回答会附上对应转写段落；没有依据时会明确说明。</p></div>`;
+      el.detailContent.innerHTML = `<div class="chat-layout"><div class="chat-history" id="chatHistory">${history}</div><form class="chat-form" id="chatForm"><textarea id="chatQuestion" aria-label="问题" placeholder="例如：下一步由谁负责？" required></textarea><button class="primary-button" type="submit">发送</button></form></div>`;
+      const historyEl = $("#chatHistory");
+      historyEl.scrollTop = historyEl.scrollHeight;
+      $("#chatForm").addEventListener("submit", askMeeting);
+    }
+
+    function transcriptForModel(meeting) {
+      return (meeting.transcript || []).map((item,index) => `[${item.id || `S${index+1}`}] [${item.timestamp || formatClock(item.startSeconds || 0)}] ${item.speaker || "发言人"}：${item.text}`).join("\n");
+    }
+
+    async function askMeeting(event) {
+      event.preventDefault();
+      if (state.processing) return;
+      const question = $("#chatQuestion").value.trim();
+      const transcript = transcriptForModel(state.activeMeeting);
+      if (!question || !transcript) { toast("当前没有可引用的文字稿", "error"); return; }
+      state.processing = true;
+      state.activeMeeting.chat = state.activeMeeting.chat || [];
+      state.activeMeeting.chat.push({role:"user", text:question, createdAt:new Date().toISOString()});
+      renderChat();
+      try {
+        const result = await cloudFetch("/v1/text/chat", {provider:providerPayload(), transcript, question});
+        state.activeMeeting.chat.push({role:"assistant", text:result.answer, citations:result.citations || [], createdAt:new Date().toISOString()});
+        await persistActiveMeeting();
+      } catch (error) {
+        state.activeMeeting.chat.push({role:"assistant", text:`暂时无法回答：${error.message}`, citations:[], createdAt:new Date().toISOString()});
+        await persistActiveMeeting();
+      } finally { state.processing = false; renderChat(); }
+    }
+
+    async function persistActiveMeeting() {
+      if (!state.activeMeeting) return;
+      state.activeMeeting.updatedAt = new Date().toISOString();
+      await dbPut("meetings", state.activeMeeting);
+      const index = state.meetings.findIndex(item => item.id === state.activeMeeting.id);
+      if (index >= 0) state.meetings[index] = state.activeMeeting;
+      else state.meetings.unshift(state.activeMeeting);
+      renderMeetingList();
+      renderDetailMeta();
+    }
+
+    async function saveTranscriptEdits() {
+      if (!state.activeMeeting || state.activeTab !== "transcript") return;
+      $$(".transcript-row", el.detailContent).forEach(row => {
+        const index = Number(row.dataset.transcriptIndex);
+        const item = state.activeMeeting.transcript[index];
+        if (!item) return;
+        item.timestamp = $(".timestamp", row).value.trim();
+        item.speaker = $(".speaker", row).value.trim() || "发言人";
+        item.text = $("textarea", row).value.trim();
+      });
+      await persistActiveMeeting();
+    }
+
+    async function requestWakeLock() {
+      if (!("wakeLock" in navigator)) return;
+      try { state.wakeLock = await navigator.wakeLock.request("screen"); }
+      catch { toast("无法保持屏幕常亮，请手动避免锁屏"); }
+    }
+
+    function supportedMimeType() {
+      const options = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
+      return options.find(type => window.MediaRecorder?.isTypeSupported(type)) || "";
+    }
+
+    async function startMeeting() {
+      if (state.recording) return;
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        toast("录音需要通过 HTTPS 打开网页，并使用支持的浏览器", "error"); return;
+      }
+      try {
+        state.stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+      } catch { toast("没有获得麦克风权限", "error"); return; }
+      const now = new Date();
+      const meeting = {
+        id:randomId("meeting"), title:`会议 ${new Intl.DateTimeFormat("zh-CN", {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(now)}`,
+        startedAt:now.toISOString(), endedAt:null, elapsedSeconds:0, status:"recording", audioSegments:[], transcript:[], analysis:null, chat:[],
+        speechModel: state.config ? {...state.config.speech, apiKey:""} : {finalModel:"本地录音"}, source:"recording"
+      };
+      state.activeMeeting = meeting;
+      state.recording = true;
+      state.paused = false;
+      state.startedAtMono = performance.now();
+      state.pausedTotal = 0;
+      state.elapsed = 0;
+      state.segmentIndex = 0;
+      state.segmentPart = 0;
+      state.stopReason = "";
+      await dbPut("meetings", meeting);
+      state.meetings.unshift(meeting);
+      renderMeetingList();
+      await requestWakeLock();
+      await beginRecorderSegment();
+      updateRecordingUI();
+      state.ticker = setInterval(updateTimer, 250);
+      document.body.classList.add("is-recording");
+      toast("会议已开始，本地录音正在保存");
+    }
+
+    async function beginRecorderSegment() {
+      if (!state.recording || !state.stream) return;
+      const mimeType = supportedMimeType();
+      const options = mimeType ? {mimeType, audioBitsPerSecond:48000} : {audioBitsPerSecond:48000};
+      state.recorder = new MediaRecorder(state.stream, options);
+      state.segmentPart = 0;
+      state.segmentStartedMono = performance.now();
+      state.segmentStartedElapsed = currentElapsed();
+      state.segmentRemaining = FOUR_MINUTES;
+      let resolveSegmentStop;
+      state.recorderStopPromise = new Promise(resolve => { resolveSegmentStop = resolve; });
+      state.recorder.ondataavailable = event => {
+        if (!event.data?.size) return;
+        const part = {id:`${state.activeMeeting.id}:${state.segmentIndex}:${state.segmentPart}`, meetingId:state.activeMeeting.id, segmentIndex:state.segmentIndex, partIndex:state.segmentPart++, blob:event.data, createdAt:new Date().toISOString()};
+        state.partWriteChain = state.partWriteChain.then(() => dbPut("audioParts", part)).catch(() => toast("本地音频写入失败，请尽快结束并导出", "error"));
+      };
+      state.recorder.onstop = async () => {
+        try {
+          await state.partWriteChain;
+          const duration = Math.max(0, currentElapsed() - state.segmentStartedElapsed);
+          state.activeMeeting.audioSegments.push({index:state.segmentIndex, startSeconds:state.segmentStartedElapsed, durationSeconds:Math.min(240, duration), mimeType:state.recorder?.mimeType || mimeType || "audio/webm", partCount:state.segmentPart, corrected:false, cloudCheckpoint:null});
+          state.segmentIndex++;
+          await persistActiveMeeting();
+          if (state.rotateAfterStop && state.recording) {
+            state.rotateAfterStop = false;
+            await beginRecorderSegment();
+          }
+        } finally {
+          resolveSegmentStop();
+        }
+      };
+      state.recorder.start(10000);
+      scheduleSegmentRotation(FOUR_MINUTES);
+    }
+
+    function scheduleSegmentRotation(delay) {
+      clearTimeout(state.segmentTimer);
+      state.segmentRemaining = delay;
+      state.segmentStartedTimerAt = performance.now();
+      state.segmentTimer = setTimeout(rotateSegment, delay);
+    }
+
+    function rotateSegment() {
+      if (!state.recording || state.paused || !state.recorder || state.recorder.state === "inactive") return;
+      state.rotateAfterStop = true;
+      state.recorder.requestData();
+      state.recorder.stop();
+    }
+
+    async function togglePause() {
+      if (!state.recording || !state.recorder) return;
+      if (!state.paused) {
+        state.paused = true;
+        state.pausedAtMono = performance.now();
+        if (state.recorder.state === "recording") state.recorder.pause();
+        clearTimeout(state.segmentTimer);
+        state.segmentRemaining = Math.max(1000, state.segmentRemaining - (performance.now() - state.segmentStartedTimerAt));
+      } else {
+        state.paused = false;
+        state.pausedTotal += performance.now() - state.pausedAtMono;
+        if (state.recorder.state === "paused") state.recorder.resume();
+        scheduleSegmentRotation(state.segmentRemaining);
+      }
+      updateRecordingUI();
+    }
+
+    function currentElapsed() {
+      const end = state.paused ? state.pausedAtMono : performance.now();
+      return Math.max(0, (end - state.startedAtMono - state.pausedTotal) / 1000);
+    }
+
+    function updateTimer() {
+      if (!state.recording) return;
+      state.elapsed = currentElapsed();
+      el.recordTime.textContent = formatClock(state.elapsed);
+      const segmentElapsed = Math.min(240, Math.max(0, state.elapsed - state.segmentStartedElapsed));
+      el.segmentState.textContent = `第 ${state.segmentIndex + 1} 段 · ${formatClock(segmentElapsed).slice(3)}/04:00`;
+      if (state.elapsed * 1000 >= TWO_HOURS) endMeeting("已达到 2 小时上限");
+    }
+
+    function updateRecordingUI() {
+      el.start.classList.toggle("hidden", state.recording);
+      el.pause.classList.toggle("hidden", !state.recording);
+      el.end.classList.toggle("hidden", !state.recording);
+      el.pause.textContent = state.paused ? "继续" : "暂停";
+      el.recordState.textContent = !state.recording ? "准备录音" : (state.paused ? "已暂停" : "正在录音");
+      updateVaultState();
+    }
+
+    async function endMeeting(reason = "") {
+      if (!state.recording) return;
+      state.stopReason = reason;
+      state.elapsed = currentElapsed();
+      if (state.paused) state.pausedTotal += performance.now() - state.pausedAtMono;
+      state.recording = false;
+      state.paused = false;
+      state.rotateAfterStop = false;
+      clearTimeout(state.segmentTimer);
+      clearInterval(state.ticker);
+      if (state.recorder && state.recorder.state !== "inactive") {
+        try { state.recorder.requestData(); } catch {}
+        try { state.recorder.stop(); } catch {}
+      }
+      if (state.recorderStopPromise) await state.recorderStopPromise;
+      await state.partWriteChain;
+      state.stream?.getTracks().forEach(track => track.stop());
+      state.stream = null;
+      if (state.wakeLock) await state.wakeLock.release().catch(() => {});
+      state.wakeLock = null;
+      state.activeMeeting.endedAt = new Date().toISOString();
+      state.activeMeeting.elapsedSeconds = Math.round(state.elapsed);
+      state.activeMeeting.status = "saved";
+      await persistActiveMeeting();
+      document.body.classList.remove("is-recording");
+      el.recordTime.textContent = "00:00:00";
+      el.segmentState.textContent = "最长 2 小时";
+      updateRecordingUI();
+      toast(reason || "会议已保存在这台设备");
+      const id = state.activeMeeting.id;
+      await openMeeting(id);
+      if (state.config?.cloud?.workerUrl && state.config?.cloud?.appToken && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
+    }
+
+    function audioMimeFromName(name, supplied = "") {
+      if (supplied && /^(audio\/|video\/(mp4|quicktime|webm))/.test(supplied)) return supplied;
+      const extension = String(name || "").toLowerCase().split(".").pop();
+      return ({m4a:"audio/mp4", mp4:"audio/mp4", mov:"video/quicktime", mp3:"audio/mpeg", wav:"audio/wav", aac:"audio/aac", flac:"audio/flac", ogg:"audio/ogg", opus:"audio/opus", webm:"audio/webm", amr:"audio/amr"})[extension] || "application/octet-stream";
+    }
+
+    function readAudioDuration(file) {
+      return new Promise(resolve => {
+        const audio = document.createElement("audio");
+        const url = URL.createObjectURL(file);
+        let finished = false;
+        const done = value => {
+          if (finished) return;
+          finished = true;
+          URL.revokeObjectURL(url);
+          resolve(Number.isFinite(value) ? value : 0);
+        };
+        audio.preload = "metadata";
+        audio.onloadedmetadata = () => done(audio.duration);
+        audio.onerror = () => done(0);
+        audio.src = url;
+        setTimeout(() => done(0), 8000);
+      });
+    }
+
+    async function importAudioFile(file) {
+      if (!file) return;
+      const extension = String(file.name || "").toLowerCase().split(".").pop();
+      const allowed = new Set(["m4a","mp3","wav","aac","flac","ogg","opus","webm","mp4","mov","amr"]);
+      if (!allowed.has(extension) && !/^audio\//.test(file.type || "")) { toast("请选择常见音频或语音备忘录文件", "error"); return; }
+      if (!file.size || file.size > MAX_IMPORTED_AUDIO) { toast("音频文件必须小于 2GB", "error"); return; }
+      $("#chooseAudio").disabled = true;
+      try {
+        if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
+        const durationSeconds = await readAudioDuration(file);
+        if (durationSeconds > 12 * 60 * 60) throw new Error("单个音频不能超过 12 小时");
+        const now = new Date(), meetingId = randomId("meeting"), importId = randomId("import");
+        const cleanTitle = String(file.name || "导入录音").replace(/\.[^.]+$/, "").trim() || "导入录音";
+        const mimeType = audioMimeFromName(file.name, file.type);
+        const record = {
+          id:importId, meetingId, blob:file, name:file.name || "录音", mimeType, size:file.size,
+          durationSeconds, createdAt:now.toISOString(), checkpoint:null
+        };
+        const meeting = {
+          id:meetingId, title:cleanTitle, startedAt:now.toISOString(), endedAt:now.toISOString(),
+          elapsedSeconds:Math.round(durationSeconds || 0), status:"saved", source:"import", importId,
+          audioSegments:[{index:0, durationSeconds:durationSeconds || 0, mimeType, partCount:1, corrected:false, imported:true}],
+          transcript:[], analysis:null, chat:[], speechModel:state.config ? {...state.config.speech, apiKey:""} : {fileModel:"待设置"}
+        };
+        await dbPut("imports", record);
+        await dbPut("meetings", meeting);
+        state.meetings.unshift(meeting);
+        renderMeetingList();
+        updateStorage();
+        toast("录音已保存在当前设备");
+        await openMeeting(meetingId);
+        if (state.config?.cloud?.workerUrl && state.config?.cloud?.appToken && state.config?.speech?.apiKey && navigator.onLine) processActiveMeeting().catch(() => {});
+      } catch (error) {
+        toast(error.message || "无法导入音频", "error");
+      } finally {
+        $("#chooseAudio").disabled = false;
+        el.audioImport.value = "";
+      }
+    }
+
+    function wait(milliseconds) {
+      return new Promise(resolve => setTimeout(resolve, milliseconds));
+    }
+
+    async function transcribeAudioBlob({blob, size, mimeType, durationSeconds, checkpoint, onCheckpoint, label = "录音"}) {
+      checkpoint = checkpoint?.objectKey ? checkpoint : {parts:[]};
+      if (!checkpoint.objectKey || !checkpoint.uploadId) {
+        showNotice("正在建立安全上传任务", 3);
+        const started = await cloudFetch("/v2/uploads/start", {size, contentType:mimeType});
+        Object.assign(checkpoint, {objectKey:started.objectKey, uploadId:started.uploadId, partSize:started.partSize || UPLOAD_PART_SIZE, parts:[], uploadComplete:false});
+        await onCheckpoint(checkpoint);
+      }
+      if (!checkpoint.uploadComplete) {
+        const partSize = checkpoint.partSize || UPLOAD_PART_SIZE;
+        let offset = checkpoint.parts.length * partSize;
+        while (offset < size) {
+          const partNumber = checkpoint.parts.length + 1;
+          const end = Math.min(size, offset + partSize);
+          showNotice(`正在上传${label} ${Math.round(offset / size * 100)}%`, 5 + offset / size * 47);
+          const part = await cloudUploadPart(`/v2/uploads/part?key=${encodeURIComponent(checkpoint.objectKey)}&uploadId=${encodeURIComponent(checkpoint.uploadId)}&partNumber=${partNumber}`, blob.slice(offset, end));
+          checkpoint.parts.push({partNumber:part.partNumber, etag:part.etag});
+          await onCheckpoint(checkpoint);
+          offset = end;
+        }
+        showNotice("正在确认音频上传", 54);
+        await cloudFetch("/v2/uploads/complete", {objectKey:checkpoint.objectKey, uploadId:checkpoint.uploadId, parts:checkpoint.parts});
+        checkpoint.uploadComplete = true;
+        await onCheckpoint(checkpoint);
+      }
+      if (!checkpoint.taskId) {
+        showNotice("云端正在启动录音转写", 58);
+        const task = await cloudFetch("/v2/transcriptions/start", {
+          provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region},
+          objectKey:checkpoint.objectKey, model:state.config.speech.fileModel,
+          diarization:Boolean(durationSeconds && durationSeconds <= 2 * 60 * 60)
+        }, 45000);
+        checkpoint.taskId = task.taskId;
+        await onCheckpoint(checkpoint);
+      }
+      for (let poll = 0; poll < 240; poll++) {
+        showNotice("正在识别录音并区分发言人；可以暂时离开此页面", Math.min(88, 60 + poll / 8));
+        let result;
+        try {
+          result = await cloudFetch("/v2/transcriptions/poll", {
+            provider:{type:"qwen", apiKey:state.config.speech.apiKey, workspaceId:state.config.speech.workspaceId, region:state.config.speech.region},
+            objectKey:checkpoint.objectKey, taskId:checkpoint.taskId
+          }, 45000);
+        } catch (error) {
+          if (["AUDIO_NOT_FOUND","TRANSCRIPTION_FAILED","RESULT_URL_MISSING"].includes(error.code)) {
+            await onCheckpoint(null);
+          }
+          throw error;
+        }
+        if (result.status === "SUCCEEDED") {
+          await onCheckpoint({transcribedAt:new Date().toISOString()});
+          return result.transcript || [];
+        }
+        await wait(Math.min(30000, 5000 + poll * 1000));
+      }
+      throw new Error("录音仍在云端排队，稍后再次点击即可继续查询");
+    }
+
+    async function transcribeImportedMeeting(meeting) {
+      if (meeting.transcript?.length && meeting.audioSegments?.[0]?.corrected) return;
+      const record = await getImportForMeeting(meeting.id);
+      if (!record?.blob) throw new Error("导入的原始音频已从浏览器中删除");
+      const transcript = await transcribeAudioBlob({
+        blob:record.blob, size:record.size, mimeType:record.mimeType, durationSeconds:record.durationSeconds,
+        checkpoint:record.checkpoint,
+        onCheckpoint:async value => { record.checkpoint = value; await dbPut("imports", record); },
+        label:"导入录音"
+      });
+      meeting.transcript = transcript.map((item, index) => ({
+        id:`S${index + 1}`, startSeconds:item.startSeconds || 0, timestamp:formatClock(item.startSeconds || 0),
+        speaker:item.speaker || "发言人", text:item.text || "", source:"file"
+      })).filter(item => item.text);
+      if (!meeting.transcript.length) throw new Error("转写完成，但没有识别到文字");
+      meeting.audioSegments[0].corrected = true;
+      meeting.status = "transcribed";
+      await persistActiveMeeting();
+    }
+
+    async function processActiveMeeting() {
+      if (state.processing || !state.activeMeeting) return;
+      if (!state.config) { openVaultDialog(); return; }
+      state.processing = true;
+      $("#processMeeting").disabled = true;
+      try {
+        const meeting = state.activeMeeting;
+        if (!await checkCloud(false)) throw new Error("云端服务尚未连接，请检查网络与 Worker 设置");
+        if (meeting.source === "import") {
+          await transcribeImportedMeeting(meeting);
+        } else {
+          const pending = (meeting.audioSegments || []).filter(segment => !segment.corrected);
+          let done = 0;
+          for (const segment of pending) {
+            showNotice(`正在转写第 ${done + 1}/${pending.length} 个录音段`, pending.length ? (done / pending.length) * 70 : 0);
+            const segmentParts = await getSegmentAudioParts(meeting.id, segment.index);
+            const blobs = segmentParts.map(part => part.blob);
+            if (!blobs.length) throw new Error(`第 ${segment.index + 1} 段本地音频缺失`);
+            const blob = new Blob(blobs, {type:segment.mimeType});
+            const recognized = await transcribeAudioBlob({
+              blob, size:blob.size, mimeType:segment.mimeType, durationSeconds:segment.durationSeconds,
+              checkpoint:segment.cloudCheckpoint,
+              onCheckpoint:async value => { segment.cloudCheckpoint = value; await persistActiveMeeting(); },
+              label:`第 ${segment.index + 1} 段`
+            });
+            const segmentStart = Number(segment.startSeconds ?? segment.index * 240);
+            meeting.transcript = meeting.transcript.filter(item => item.sourceSegment !== segment.index);
+            recognized.forEach(item => {
+              const startSeconds = segmentStart + Number(item.startSeconds || 0);
+              if (item.text) meeting.transcript.push({id:"", startSeconds, timestamp:formatClock(startSeconds), speaker:item.speaker || "发言人", text:item.text, source:"file", sourceSegment:segment.index});
+            });
+            if (!recognized.length) throw new Error(`第 ${segment.index + 1} 段没有识别到文字`);
+            segment.corrected = true;
+            done++;
+            await persistActiveMeeting();
+          }
+        }
+        if ((meeting.audioSegments || []).every(segment => segment.corrected)) {
+          meeting.transcript = meeting.transcript.sort((a,b) => (a.startSeconds || 0) - (b.startSeconds || 0));
+          meeting.transcript.forEach((item, index) => { item.id = `S${index + 1}`; });
+          await persistActiveMeeting();
+        }
+        const transcript = transcriptForModel(meeting);
+        if (!transcript) throw new Error("还没有可整理的文字稿");
+        showNotice("正在生成结构化纪要和思维导图", 82);
+        const result = await cloudFetch("/v1/text/analyze", {provider:providerPayload(), transcript}, 180000);
+        meeting.analysis = result.analysis;
+        meeting.title = result.analysis.title || meeting.title;
+        el.detailTitle.value = meeting.title;
+        await persistActiveMeeting();
+        showNotice("纪要已生成", 100);
+        setTimeout(clearNotice, 2200);
+        state.activeTab = "minutes";
+        $$("#detailTabs .tab-button").forEach(button => button.classList.toggle("active", button.dataset.tab === "minutes"));
+        renderDetail();
+      } catch (error) {
+        showNotice(`处理暂停：${error.message}`);
+        toast(error.message, "error");
+      } finally {
+        state.processing = false;
+        $("#processMeeting").disabled = false;
+      }
+    }
+
+    function meetingMarkdown(meeting) {
+      const a = meeting.analysis || {};
+      const lines = [`# ${meeting.title || "未命名会议"}`, "", `- 时间：${formatDate(meeting.startedAt)}`, `- 时长：${formatClock(meeting.elapsedSeconds || 0)}`, ""];
+      if (a.summary) lines.push("## 核心摘要", "", a.summary, "");
+      if (a.topics?.length) { lines.push("## 议题", ""); a.topics.forEach(t => { lines.push(`### ${t.title}`, "", ...(t.details || []).map(x => `- ${x}`), ""); }); }
+      if (a.decisions?.length) lines.push("## 结论和决定", "", ...a.decisions.map(x => `- ${x}`), "");
+      if (a.actionItems?.length) {
+        lines.push("## 行动项", "", "| 行动 | 负责人 | 日期 | 状态 |", "|---|---|---|---|");
+        a.actionItems.forEach(x => lines.push(`| ${x.task} | ${x.owner} | ${x.due} | ${x.status} |`)); lines.push("");
+      }
+      if (a.risks?.length) lines.push("## 风险", "", ...a.risks.map(x => `- ${x}`), "");
+      if (a.openQuestions?.length) lines.push("## 待确认", "", ...a.openQuestions.map(x => `- ${x}`), "");
+      lines.push("## 完整文字稿", "");
+      (meeting.transcript || []).forEach(x => lines.push(`**[${x.timestamp}] ${x.speaker}**：${x.text}`, ""));
+      return lines.join("\n");
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportMarkdown() {
+      if (!state.activeMeeting) return;
+      downloadBlob(new Blob([meetingMarkdown(state.activeMeeting)], {type:"text/markdown;charset=utf-8"}), `${state.activeMeeting.title || "会议纪要"}.md`);
+    }
+
+    function exportMindPng() {
+      const svg = $("#mindSvg");
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+      style.textContent = `.mind-node-root{fill:#d31145}.mind-node{fill:#fff;stroke:#cfd6db;stroke-width:1.5}.mind-edge{fill:none;stroke:#c2cbd1;stroke-width:1.5}.mind-text-root{fill:#fff;font-weight:700}.mind-text{fill:#333d47}`;
+      clone.prepend(style);
+      const source = new XMLSerializer().serializeToString(clone);
+      const url = URL.createObjectURL(new Blob([source], {type:"image/svg+xml"}));
+      const image = new Image();
+      image.onload = () => {
+        const scale = 2, canvas = document.createElement("canvas"); canvas.width = svg.width.baseVal.value * scale; canvas.height = svg.height.baseVal.value * scale;
+        const context = canvas.getContext("2d"); context.scale(scale, scale); context.drawImage(image, 0, 0);
+        canvas.toBlob(blob => { if (blob) downloadBlob(blob, `${state.activeMeeting.title || "会议"}-思维导图.png`); URL.revokeObjectURL(url); }, "image/png");
+      };
+      image.src = url;
+    }
+
+    async function deleteCurrentMeeting() {
+      if (!state.activeMeeting) return;
+      if (state.processing) { toast("请等待当前处理结束后再删除", "error"); return; }
+      if (!confirm(`确定删除“${state.activeMeeting.title}”及其本地录音吗？此操作无法撤销。`)) return;
+      const id = state.activeMeeting.id;
+      const imported = state.activeMeeting.source === "import" ? await getImportForMeeting(id) : null;
+      if (imported?.checkpoint?.uploadId && !imported.checkpoint.uploadComplete && state.config) {
+        await cloudFetch("/v2/uploads/abort", {objectKey:imported.checkpoint.objectKey, uploadId:imported.checkpoint.uploadId}, 15000).catch(() => {});
+      }
+      await deleteAudioParts(id);
+      if (imported) await dbDelete("imports", imported.id);
+      await dbDelete("meetings", id);
+      state.meetings = state.meetings.filter(item => item.id !== id);
+      state.activeMeeting = null;
+      renderMeetingList();
+      showView("home");
+      updateStorage();
+      toast("会议已从当前设备删除");
+    }
+
+    async function updateStorage() {
+      if (!navigator.storage?.estimate) { el.storageText.textContent = "当前浏览器不提供空间估算"; return; }
+      const {usage = 0, quota = 0} = await navigator.storage.estimate();
+      const mb = value => `${(value / 1024 / 1024).toFixed(value > 100 * 1024 * 1024 ? 0 : 1)} MB`;
+      el.storageText.textContent = `已使用约 ${mb(usage)}，浏览器可用配额约 ${mb(quota)}`;
+      el.storageBar.style.width = quota ? `${Math.min(100, usage / quota * 100)}%` : "0%";
+    }
+
+    async function resetVault() {
+      if (!confirm("确定重置保险箱吗？已保存的 Key、Workspace 和云端连接将被删除，会议不会删除。")) return;
+      await dbDelete("vault", "primary");
+      state.vaultRecord = null; state.vaultKey = null; state.config = null;
+      fillSettings(); updateVaultState(); setConnection("offline", "云端未设置");
+      toast("保险箱已重置"); openVaultDialog("setup");
+    }
+
+    async function deleteKey(kind) {
+      if (!state.config) { openVaultDialog(); return; }
+      if (kind === "speech") state.config.speech.apiKey = "";
+      else state.config.text.apiKey = "";
+      await saveVaultWithCurrentKey(); fillSettings(); toast("Key 已删除");
+    }
+
+    function bindEvents() {
+      $$(".nav-button").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
+      $("#quickSettings").addEventListener("click", () => showView("settings"));
+      el.connectionPill.addEventListener("click", () => checkCloud(true));
+      el.start.addEventListener("click", startMeeting);
+      $("#chooseAudio").addEventListener("click", () => el.audioImport.click());
+      el.audioImport.addEventListener("change", () => importAudioFile(el.audioImport.files?.[0]));
+      el.pause.addEventListener("click", togglePause);
+      el.end.addEventListener("click", () => endMeeting());
+      $("#backHome").addEventListener("click", () => showView("home"));
+      el.meetingList.addEventListener("click", event => { const card = event.target.closest("[data-meeting-id]"); if (card) openMeeting(card.dataset.meetingId); });
+      $("#detailTabs").addEventListener("click", async event => {
+        const button = event.target.closest("[data-tab]"); if (!button) return;
+        await saveTranscriptEdits(); state.activeTab = button.dataset.tab;
+        $$("#detailTabs .tab-button").forEach(item => item.classList.toggle("active", item === button)); renderDetail();
+      });
+      el.detailTitle.addEventListener("change", async () => { if (state.activeMeeting) { state.activeMeeting.title = el.detailTitle.value.trim() || "未命名会议"; await persistActiveMeeting(); } });
+      el.detailContent.addEventListener("change", event => { if (event.target.matches(".transcript-row input,.transcript-row textarea")) saveTranscriptEdits(); });
+      el.detailContent.addEventListener("click", event => {
+        const action = event.target.closest("[data-mind]")?.dataset.mind;
+        if (!action) return;
+        if (action === "png") return exportMindPng();
+        state.mindZoom = Math.max(.5, Math.min(2, state.mindZoom + (action === "in" ? .15 : -.15)));
+        const svg = $("#mindSvg"); if (svg) svg.style.transform = `scale(${state.mindZoom})`;
+      });
+      $("#processMeeting").addEventListener("click", processActiveMeeting);
+      $("#exportMarkdown").addEventListener("click", exportMarkdown);
+      $("#printMeeting").addEventListener("click", () => window.print());
+      $("#deleteMeeting").addEventListener("click", deleteCurrentMeeting);
+      $("#openVault").addEventListener("click", () => openVaultDialog());
+      $("#lockVault").addEventListener("click", () => lockVault());
+      $("#changePin").addEventListener("click", () => openVaultDialog("change"));
+      $("#vaultForm").addEventListener("submit", handleVaultSubmit);
+      el.vaultCancel.addEventListener("click", event => { event.preventDefault(); el.vaultDialog.close(); });
+      $("#textProvider").addEventListener("change", () => updateProviderFields(true));
+      $("#saveSettings").addEventListener("click", saveSettings);
+      $("#applyCloudSetup").addEventListener("click", applyCloudSetup);
+      $("#testCloud").addEventListener("click", async () => {
+        try { readCloudSettings(); await saveVaultWithCurrentKey(); await checkCloud(true); }
+        catch (error) { toast(error.message, "error"); }
+      });
+      $("#testSpeech").addEventListener("click", () => testProvider("speech"));
+      $("#testText").addEventListener("click", () => testProvider("text"));
+      $("#deleteSpeechKey").addEventListener("click", () => deleteKey("speech"));
+      $("#deleteTextKey").addEventListener("click", () => deleteKey("text"));
+      $("#resetVault").addEventListener("click", resetVault);
+      ["pointerdown","keydown","touchstart"].forEach(name => document.addEventListener(name, touchActivity, {passive:true}));
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.recording) requestWakeLock(); });
+      window.addEventListener("online", () => checkCloud(false));
+      window.addEventListener("offline", () => setConnection("offline", "网络离线"));
+      window.addEventListener("beforeunload", event => { if (state.recording) { event.preventDefault(); event.returnValue = ""; } });
+    }
+
+    async function init() {
+      try {
+        state.db = await openDatabase();
+        state.vaultRecord = await dbGet("vault", "primary");
+        await loadMeetings();
+        bindEvents();
+        fillSettings();
+        updateVaultState();
+        updateStorage();
+        updateRecordingUI();
+        if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
+        setTimeout(() => openVaultDialog(state.vaultRecord ? "unlock" : "setup"), 250);
+      } catch (error) {
+        toast(`初始化失败：${error.message}`, "error");
+      }
+    }
+
+    window.__meetingApp = {state, openMeeting, showView, checkCloud, processActiveMeeting, importAudioFile};
+    init();
+  })();
+  </script>
+</body>
+</html>
