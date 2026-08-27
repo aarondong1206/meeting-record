@@ -982,7 +982,7 @@
         return timeoutError;
       }
       if (error instanceof TypeError || /load failed|failed to fetch|networkerror|unexpected eof|json parse/i.test(error.message || "")) {
-        const networkError = new Error("Mac 代理连接暂时中断，正在尝试恢复");
+        const networkError = new Error("Mac 代理通道暂时中断；网页会自动重试，若 1 分钟仍未恢复，请查看 Mac 终端中的新配对信息");
         networkError.code = "PROXY_NETWORK";
         networkError.retryable = true;
         return networkError;
